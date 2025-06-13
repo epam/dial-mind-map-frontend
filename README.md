@@ -2,7 +2,9 @@
 
 ## Overview
 
-The project is a frontend for DIAL Mind Map Studio. Check the demo: https://www.youtube.com/watch?v=XYZfWeGdFcE
+The project is a frontend part of the DIAL Mind Map Studio. Check the demo: 
+
+[![Check the demo](https://img.youtube.com/vi/XYZfWeGdFcE/0.jpg)](https://www.youtube.com/watch?v=XYZfWeGdFcE)
 
 ## Run locally
 
