@@ -1,0 +1,4 @@
+.draggable-chat {
+  will-change: height;
+  transform: translateZ(0);
+}
