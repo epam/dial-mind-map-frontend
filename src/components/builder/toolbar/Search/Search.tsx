@@ -142,7 +142,7 @@ export const Search = () => {
   return (
     <div
       className={classNames([
-        'relative flex flex-col gap-2 px-3',
+        'relative flex flex-col gap-2 px-3 z-20',
         isMessageStreaming && 'opacity-50 pointer-events-none',
       ])}
     >

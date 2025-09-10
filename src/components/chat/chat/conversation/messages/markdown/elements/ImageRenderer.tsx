@@ -11,9 +11,17 @@ export type ImageRendererProps = {
 export const ImageRenderer = ({ src, alt }: ImageRendererProps) => {
   const [isModalOpen, setModalOpen] = useState(false);
 
+  const handleClick = (event: React.MouseEvent<HTMLImageElement>) => {
+    // Prevent maximizing if image is inside a link
+    const isInsideLink = event.currentTarget.closest('a');
+    if (!isInsideLink) {
+      setModalOpen(true);
+    }
+  };
+
   return (
     <>
-      <img src={src} alt={alt} className="cursor-zoom-in" onClick={() => setModalOpen(true)} />
+      <img src={src} alt={alt} className="cursor-zoom-in" onClick={handleClick} />
 
       {isModalOpen && (
         <ImageModal onClose={() => setModalOpen(false)}>

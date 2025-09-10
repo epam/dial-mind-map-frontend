@@ -23,6 +23,7 @@ export const ReferenceFullscreenView: React.FC<Props> = ({ references, mindmapFo
   const onCloseFullscreenReferences = () => {
     dispatch(MindmapActions.setFullscreenReferences(null));
     dispatch(MindmapActions.setFullscreenInitialSlide(null));
+    dispatch(MindmapActions.setActiveFullscreenReferenceId(null));
   };
 
   useHotkeys(['esc'], () => onCloseFullscreenReferences());
@@ -38,7 +39,7 @@ export const ReferenceFullscreenView: React.FC<Props> = ({ references, mindmapFo
   return (
     <div
       className={classNames(
-        'absolute size-full left-0 top-0 z-40 rounded-lg border-2 border-primary bg-layer-0 shadow flex flex-col',
+        'absolute size-full left-0 top-0 z-40 rounded-lg border-2 border-primary bg-layer-0 flex flex-col reference-view',
       )}
     >
       <div className="flex-none border-b border-secondary">

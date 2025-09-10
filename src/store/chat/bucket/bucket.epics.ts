@@ -4,7 +4,7 @@ import { fromFetch } from 'rxjs/fetch';
 
 import { ChatRootEpic } from '@/types/store';
 
-import { selectIsAllowApiKey } from '../ui/ui.reducers';
+import { ChatUISelectors } from '../ui/ui.reducers';
 import { checkForUnauthorized } from '../utils/checkForUnauthorized';
 import { globalCatchChatUnauthorized } from '../utils/globalCatchUnauthorized';
 import { BucketActions } from './bucket.reducer';
@@ -12,7 +12,7 @@ import { BucketActions } from './bucket.reducer';
 const fetchBucketEpic: ChatRootEpic = (action$, state$) =>
   action$.pipe(
     filter(BucketActions.fetchBucketStart.match),
-    withLatestFrom(state$.pipe(map(selectIsAllowApiKey))),
+    withLatestFrom(state$.pipe(map(ChatUISelectors.selectIsAllowApiKey))),
     switchMap(([, isAllowApiKey]) => {
       if (isAllowApiKey) {
         return of(BucketActions.fetchBucketSuccess('default-bucket'));

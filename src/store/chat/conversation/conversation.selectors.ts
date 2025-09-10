@@ -28,3 +28,7 @@ export const selectCustomElements = createSelector([selectConversation], conv =>
 export const selectCustomViewState = createSelector([selectConversation], conv => conv.customViewState);
 
 export const selectConversations = createSelector([rootSelector], state => state.conversations);
+
+export const selectPlaybackActions = createSelector([rootSelector], state => {
+  return state.conversation.playback?.customViewState.playbackActions;
+});

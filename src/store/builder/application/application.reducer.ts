@@ -11,6 +11,7 @@ export const ApplicationInitialState: ApplicationState = {
   application: undefined,
   isLoading: false,
   error: null,
+  isApplicationReady: false,
 };
 
 export const applicationSlice = createSlice({
@@ -39,6 +40,9 @@ export const applicationSlice = createSlice({
     },
     updateApplicationFailure: (state, { payload }: PayloadAction<string>) => {
       state.error = payload;
+    },
+    setIsApplicationReady: (state, { payload }: PayloadAction<boolean>) => {
+      state.isApplicationReady = payload;
     },
   },
 });

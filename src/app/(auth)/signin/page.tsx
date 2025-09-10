@@ -4,6 +4,8 @@ import { useSearchParams } from 'next/navigation';
 import { signIn, useSession } from 'next-auth/react';
 import { useCallback, useEffect } from 'react';
 
+import Loader from '@/components/common/Loader';
+
 const SignInPage = () => {
   const session = useSession();
   const searchParams = useSearchParams();
@@ -15,18 +17,6 @@ const SignInPage = () => {
       window.close();
     }
   }, [session]);
-
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      window.opener?.postMessage({ type: 'AUTH_WINDOW_CLOSED' }, '*');
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, []);
 
   useEffect(() => {
     if (session.status !== 'loading' && (session.data?.error || !session.data)) {
@@ -47,7 +37,15 @@ const SignInPage = () => {
     }
   }, [session, searchParams, updateSession]);
 
-  return null;
+  return (
+    <div className="flex size-full min-h-screen min-w-full flex-col items-center justify-center gap-7 bg-layer-1 text-center text-primary">
+      <Loader size={48} />
+      <div className="flex flex-col gap-4">
+        <div className="text-[20px]">Signing in...</div>
+        <div className="text-sm text-secondary">Please wait while we authenticate your account.</div>
+      </div>
+    </div>
+  );
 };
 
 export default SignInPage;

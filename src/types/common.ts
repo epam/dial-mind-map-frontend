@@ -1,5 +1,6 @@
 import { Graph } from './graph';
 import { Sources } from './sources';
+import { ThemesConfig } from './themes';
 
 export enum EntityType {
   Model = 'model',
@@ -122,4 +123,11 @@ export interface UndoRedo {
 export interface ExtendedUndoRedo extends UndoRedo {
   sources?: Sources;
   graph?: Graph;
+  appearances?: ThemesConfig;
+}
+
+export enum Pages {
+  CONTENT = 'content',
+  SOURCES = 'sources',
+  CUSTOMIZE = 'customize',
 }

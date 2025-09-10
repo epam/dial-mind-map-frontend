@@ -6,3 +6,9 @@ export interface Token extends JWT {
   userId: string;
   refreshToken: string | TokenSet;
 }
+
+export enum AuthUiMode {
+  Tab = 'tab',
+  Popup = 'popup',
+  SameWindow = 'sameWindow',
+}

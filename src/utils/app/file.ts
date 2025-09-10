@@ -12,12 +12,46 @@ export const getFileNameExtension = (filename: string) =>
 export const prepareFileName = (filename: string) =>
   `${getFileNameWithoutExtension(filename)}${getFileNameExtension(filename)}`;
 
+export const prepareStorageFontFileName = (filename: string): string =>
+  `${Date.now()}-font.${getFileNameWithoutExtension(filename)}${getFileNameExtension(filename)}`;
+
+export const isStorageFontFileName = (filename: string): boolean => {
+  const timestampFontPrefixRegex = /^\d{13}-font\./;
+  return timestampFontPrefixRegex.test(filename);
+};
+
+export const extractOriginalStorageFontFileName = (storageFileName: string): string => {
+  const pattern = /^\d{13}-font\.(.+)$/;
+  const match = storageFileName.match(pattern);
+  return match ? match[1] : '';
+};
+
+export const extractPrefixStorageFontFileName = (storageFileName: string): string => {
+  const match = storageFileName.match(/^(\d{13}-font)\./);
+  return match ? match[1] : '';
+};
+
 export const getFilesWithInvalidFileSize = (files: File[], sizeLimit: number): File[] => {
   return files.filter(file => file.size > sizeLimit);
 };
 
 export const getFilesWithInvalidFileType = (files: File[], allowedFileTypes: string[]): File[] => {
   return allowedFileTypes.includes('*/*') ? [] : files.filter(file => !isAllowedMimeType(allowedFileTypes, file.type));
+};
+
+export const getFilesWithInvalidFileExtension = (files: File[], allowedFileExtensions: string[]): File[] => {
+  if (allowedFileExtensions.includes('*')) {
+    return [];
+  }
+
+  return files.filter(file => !isAllowedFileExtension(allowedFileExtensions, file.name));
+};
+
+export const isAllowedFileExtension = (allowedFileExtensions: string[], fileName: string): boolean => {
+  const lowerCaseExtensions = allowedFileExtensions.map(ext => ext.toLowerCase());
+  const fileExtension = '.' + fileName.split('.').pop()?.toLowerCase();
+
+  return lowerCaseExtensions.includes(fileExtension);
 };
 
 export const isAllowedMimeType = (allowedMimeTypes: string[], resourceMimeType: string) => {

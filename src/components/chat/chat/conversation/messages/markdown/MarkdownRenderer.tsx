@@ -17,9 +17,10 @@ interface MarkdownRendererProps {
   text: string;
   references?: Reference;
   isShowResponseLoader: boolean;
+  messageId?: string;
 }
 
-const MarkdownRenderer = ({ text, references, isShowResponseLoader }: MarkdownRendererProps) => {
+const MarkdownRenderer = ({ text, references, isShowResponseLoader, messageId }: MarkdownRendererProps) => {
   const modifiedText = text.replaceAll('^^[', '||[').replaceAll(']^.', ']^');
   return (
     <ReactMarkdown
@@ -28,7 +29,7 @@ const MarkdownRenderer = ({ text, references, isShowResponseLoader }: MarkdownRe
       components={{
         img: ImageRenderer,
         a: LinkRenderer,
-        sup: props => <ReferenceRenderer {...props} references={references} />,
+        sup: props => <ReferenceRenderer {...props} references={references} messageId={messageId} />,
         p: props => (
           <ParagraphRenderer
             {...props}

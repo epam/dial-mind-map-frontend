@@ -25,8 +25,11 @@ export const updateNodesPositionsEpic: BuilderRootEpic = (action$, state$) =>
       elements: GraphSelectors.selectElements(state$.value),
     })),
     concatMap(({ payload, name, elements }) => {
+      const { positionedNodes, historySkip } = payload;
+
       const body = {
-        nodes: payload,
+        nodes: positionedNodes,
+        history_skip: historySkip,
       };
 
       const optimisticActions: Action[] = [
@@ -34,7 +37,7 @@ export const updateNodesPositionsEpic: BuilderRootEpic = (action$, state$) =>
         GraphActions.setElements({
           //TO-DO: Update Elements types to be more specific
           elements: elements.map((el: any) => {
-            const changedNode = payload.find(node => node.data.id === el.data.id);
+            const changedNode = positionedNodes.find(node => node.data.id === el.data.id);
             if (changedNode) {
               return cloneDeep({
                 ...el,

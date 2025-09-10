@@ -30,7 +30,7 @@ export const getDocumentsHandler = async (
       if (response.status === 401) {
         return new NextResponse(errorsMessages.unauthorized, { status: 401 });
       }
-      return new NextResponse(errorsMessages.getDocumentsFailed, { status: 400 });
+      return new NextResponse(errorsMessages.getDocumentsFailed, { status: response.status });
     }
 
     const json = await response.json();

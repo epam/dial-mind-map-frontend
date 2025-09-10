@@ -39,7 +39,7 @@ export const handleUndoRedo = async (
         },
         `Error occurred while ${action}ing the mindmap's state`,
       );
-      return new NextResponse(errRespText, { status: 400 });
+      return new NextResponse(errRespText, { status: response.status });
     }
 
     const headers = new Headers();

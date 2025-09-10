@@ -11,4 +11,5 @@ export const NA_VERSION = 'N/A';
 export const LOCAL_BUCKET = 'local';
 
 export const MAX_SOURCE_FILE_SIZE_MB = 512;
-export const MAX_NODE_ICON_FILE_SIZE_KB = 64;
+export const MAX_NODE_ICON_FILE_SIZE_KB = 2640;
+export const MAX_FONT_FILE_SIZE_KB = 1024;

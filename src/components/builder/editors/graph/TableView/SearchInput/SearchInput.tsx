@@ -56,7 +56,7 @@ export const SearchInput = <TData, TValue>({ column, setIsOpen, isOpen }: Props<
           autoFocus={isOpen}
           onBlur={handleBlur}
           placeholder="Search..."
-          className="border-b border-secondary bg-transparent text-[14px] leading-3 text-primary outline-none placeholder:text-secondary"
+          className="w-full max-w-[200px] border-b border-secondary bg-transparent text-[14px] leading-3 text-primary outline-none placeholder:text-secondary"
         />
       </div>
     </div>

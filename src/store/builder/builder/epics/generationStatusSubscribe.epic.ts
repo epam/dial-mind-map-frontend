@@ -16,11 +16,11 @@ import {
 import { MindmapUrlHeaderName } from '@/constants/http';
 import { GenerationStatus } from '@/types/sources';
 import { BuilderRootEpic } from '@/types/store';
-import { generateMindmapFolderPath } from '@/utils/app/application';
 
 import { ApplicationSelectors } from '../../application/application.reducer';
 import { GraphActions } from '../../graph/graph.reducers';
 import { HistoryActions } from '../../history/history.reducers';
+import { SourcesActions } from '../../sources/sources.reducers';
 import { UIActions } from '../../ui/ui.reducers';
 import { checkForUnauthorized } from '../../utils/checkForUnauthorized';
 import { globalCatchUnauthorized } from '../../utils/globalCatchUnauthorized';
@@ -31,8 +31,7 @@ export const generationStatusSubscribeEpic: BuilderRootEpic = (action$, state$) 
     filter(BuilderActions.generationStatusSubscribe.match),
     mergeMap(() => {
       const name = ApplicationSelectors.selectApplicationName(state$.value);
-      const application = ApplicationSelectors.selectApplication(state$.value);
-      const mindmapFolder = generateMindmapFolderPath(application);
+      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
 
       return from(
         fetch(`/api/mindmaps/${encodeURIComponent(name)}/generation_status`, {
@@ -158,7 +157,7 @@ export const generationCompleteEpic: BuilderRootEpic = action$ =>
       return concat(
         of(GraphActions.setGraphReady(false)),
         of(BuilderActions.fetchGraph()),
-        of(BuilderActions.fetchSources()),
+        of(SourcesActions.fetchSources()),
         of(HistoryActions.fetchUndoRedo()),
         of(BuilderActions.setGenerationStatus(GenerationStatus.FINISHED)),
         action$.pipe(

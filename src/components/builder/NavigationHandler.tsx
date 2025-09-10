@@ -28,7 +28,7 @@ export const NavigationHandler = () => {
     router.push(fullUrl);
 
     dispatch(UIActions.softNavigateTo());
-  }, [navigationTarget, pathname]);
+  }, [navigationTarget, pathname, searchParams, router, dispatch]);
 
   return null;
 };

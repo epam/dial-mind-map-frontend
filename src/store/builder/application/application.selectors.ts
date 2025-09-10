@@ -20,3 +20,10 @@ export const selectApplicationName = createSelector(
   [rootSelector],
   state => state.application?.name ?? state.application?.application ?? '',
 );
+
+export const selectApplicationDisplayName = createSelector(
+  [rootSelector],
+  state => state.application?.display_name ?? state.application?.name ?? state.application?.application ?? '',
+);
+
+export const selectIsApplicationReady = createSelector([rootSelector], state => state.isApplicationReady);

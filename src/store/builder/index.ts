@@ -1,6 +1,10 @@
 import { configureStore, Store } from '@reduxjs/toolkit';
 import { combineEpics, createEpicMiddleware, Epic, EpicMiddleware } from 'redux-observable';
 
+import { AuthUiMode } from '@/types/auth';
+
+import { AppearanceEpics } from './appearance/appearance.epics';
+import { appearanceSlice } from './appearance/appearance.reducers';
 import { ApplicationEpics } from './application/application.epics';
 import { applicationSlice } from './application/application.reducer';
 import authSlice from './auth/auth.slice';
@@ -16,8 +20,12 @@ import { HistoryEpics } from './history/history.epics';
 import { historySlice } from './history/history.reducers';
 import { ListenerMiddleware } from './middleware/listener';
 import { preferencesSlice } from './preferences/preferences.reducers';
+import { settingsSlice } from './settings/settings.reducers';
+import { SourcesEpics } from './sources/sources.epic';
+import { sourcesSlice } from './sources/sources.reducers';
 import { UIEpics } from './ui/ui.epics';
 import { uiSlice } from './ui/ui.reducers';
+import { uploadResourceStatusSlice } from './uploadResourceStatus/uploadResourceStatus.reducers';
 
 export const rootEpic = combineEpics(
   BuilderEpics,
@@ -27,6 +35,8 @@ export const rootEpic = combineEpics(
   FilesEpics,
   GraphEpics,
   HistoryEpics,
+  AppearanceEpics,
+  SourcesEpics,
 );
 
 const reducer = {
@@ -39,6 +49,10 @@ const reducer = {
   auth: authSlice,
   files: filesSlice.reducer,
   history: historySlice.reducer,
+  appearance: appearanceSlice.reducer,
+  settings: settingsSlice.reducer,
+  uploadResourceStatus: uploadResourceStatusSlice.reducer,
+  sources: sourcesSlice.reducer,
 };
 
 let store: Store;
@@ -63,12 +77,22 @@ export const createBuilderStore = ({
   dialApiHost,
   isAllowApiKeyAuth,
   providers,
+  googleFontsApiKey,
+  authUiMode,
+  isSimpleGenerationModeAvailable,
+  defaultSimpleModeModel,
+  defaultSimpleModePrompt,
 }: {
   dialApiHost: string;
   dialChatHost: string;
   mindmapIframeTitle: string;
   isAllowApiKeyAuth: boolean;
   providers: string[];
+  googleFontsApiKey: string;
+  authUiMode: AuthUiMode;
+  isSimpleGenerationModeAvailable: boolean;
+  defaultSimpleModeModel: string;
+  defaultSimpleModePrompt: string;
 }) => {
   const initialState = {
     ui: {
@@ -77,10 +101,21 @@ export const createBuilderStore = ({
       mindmapIframeTitle,
       isAllowApiKeyAuth,
       providers,
+      authUiMode,
+      isSimpleGenerationModeAvailable,
     },
     files: {
       ...filesSlice.getInitialState(),
       dialApiHost,
+    },
+    settings: {
+      ...settingsSlice.getInitialState(),
+      googleFontsApiKey,
+    },
+    builder: {
+      ...builderSlice.getInitialState(),
+      defaultSimpleModeModel: defaultSimpleModeModel,
+      defaultSimpleModePrompt: defaultSimpleModePrompt,
     },
   };
   if (typeof window === 'undefined') {

@@ -4,9 +4,12 @@ import { ChatVisualizerConnector } from '@epam/ai-dial-chat-visualizer-connector
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef } from 'react';
 
+import { GraphError } from '@/components/chat/GraphError';
 import { Mindmap } from '@/components/chat/Mindmap';
 import { AuthProviderError } from '@/components/common/AuthProviderError';
+import { Forbidden } from '@/components/common/Forbidden';
 import { Login } from '@/components/common/Login';
+import { NetworkOfflineBanner } from '@/components/common/NetworkOfflineBanner';
 import { RecaptchaProvider } from '@/hooks/recaptcha/RecaptchaProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useChatAuthProvider } from '@/hooks/useChatAuthProvider';
@@ -15,6 +18,7 @@ import { AnonymSessionSelectors } from '@/store/chat/anonymSession/anonymSession
 import { chatAuthActions, ChatAuthSelectors } from '@/store/chat/chatAuth/chatAuth.slice';
 import { ConversationActions } from '@/store/chat/conversation/conversation.reducers';
 import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
+import { PlaybackSelectors } from '@/store/chat/playback/playback.selectors';
 import { ChatUIActions, ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
 import { isClientSessionValid } from '@/utils/auth/session';
 
@@ -29,9 +33,12 @@ const ChatPage = () => {
   const chatVisualizerConnector = useRef<ChatVisualizerConnector | null>(null);
   const theme = useSearchParams().get('theme');
   const redirectToSignIn = useChatSelector(ChatAuthSelectors.selectRedirectToSignin);
+  const redirectToForbidden = useChatSelector(ChatAuthSelectors.selectRedirectToForbidden);
   const resetRedirect = useCallback(() => dispatch(chatAuthActions.resetRedirect()), [dispatch]);
   const isAllowApiKey = useChatSelector(ChatUISelectors.selectIsAllowApiKey);
   const recaptchaSiteKey = useChatSelector(AnonymSessionSelectors.selectRecaptchaSiteKey);
+  const authUiMode = useChatSelector(ChatUISelectors.selectAuthUiMode);
+  const isPlaybackUnavailable = useChatSelector(PlaybackSelectors.selectIsPlaybackUnavailable);
 
   const providers = useChatSelector(ChatUISelectors.selectProviders);
 
@@ -40,7 +47,13 @@ const ChatPage = () => {
     providers: providers,
   });
 
-  const { session, setShouldLogin, shouldLogin } = useAuth(redirectToSignIn, resetRedirect, isAllowApiKey);
+  const { session, onLogin, shouldLogin } = useAuth(
+    redirectToSignIn,
+    resetRedirect,
+    isAllowApiKey,
+    authUiMode,
+    isAllowProvider,
+  );
 
   const searchParams = useSearchParams();
   const [width, height] = useWindowSize();
@@ -90,6 +103,8 @@ const ChatPage = () => {
     [dispatch],
   );
 
+  const isOffline = useChatSelector(ChatUISelectors.selectIsOffline);
+
   useEffect(() => {
     if (!isInitialized.current) {
       if (!chatVisualizerConnector.current && dialHost && mindmapIframeTitle) {
@@ -116,7 +131,7 @@ const ChatPage = () => {
     }
 
     if (theme) {
-      dispatch(ChatUIActions.setTheme(theme));
+      dispatch(ChatUIActions.setThemeName(theme));
     }
 
     return () => {
@@ -129,15 +144,27 @@ const ChatPage = () => {
     return <AuthProviderError provider={chatAuthProvider ?? ''} availableProviders={providers} />;
   }
 
-  if ((!session || !isClientSessionValid(session) || redirectToSignIn) && !isAllowApiKey)
+  if (redirectToForbidden) {
+    return <Forbidden />;
+  }
+
+  if ((!session || !isClientSessionValid(session) || redirectToSignIn) && !isAllowApiKey) {
+    return <Login onClick={onLogin} shouldLogin={shouldLogin} />;
+  }
+
+  if (isPlaybackUnavailable) {
     return (
-      <Login
-        onClick={() => {
-          setShouldLogin(true);
-        }}
-        shouldLogin={shouldLogin}
+      <GraphError
+        title="Playback isn’t available for this conversation."
+        description="To use playback, try starting a new conversation."
+        iconSize={60}
       />
     );
+  }
+
+  if (isOffline) {
+    return <NetworkOfflineBanner />;
+  }
 
   return (
     <RecaptchaProvider siteKey={recaptchaSiteKey} isApiKeyAllowed={isAllowApiKey}>

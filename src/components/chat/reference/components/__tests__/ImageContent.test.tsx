@@ -1,6 +1,5 @@
 import { render, screen } from '@testing-library/react';
 
-import { DeviceType } from '@/store/chat/ui/ui.reducers';
 import { DocsReference } from '@/types/graph';
 
 import { ImageContent } from '../ImageContent';
@@ -25,39 +24,20 @@ describe('ImageContent Component', () => {
     doc_content_type: 'application/pdf',
     content_type: 'image/jpeg',
     version: 1,
+    source_name: 'source',
   };
   const folderPath = 'folder';
 
   test('renders image with correct src and alt', () => {
-    render(<ImageContent reference={reference} folderPath={folderPath} deviceType={DeviceType.Desktop} />);
+    render(<ImageContent reference={reference} folderPath={folderPath} />);
     const image = screen.getByRole('img', { name: /document.pdf/i });
     expect(image).toBeInTheDocument();
     expect(image).toHaveAttribute('src', '/api/folder/image.jpg');
   });
 
   test('applies correct class when isFullscreenReference is true', () => {
-    render(
-      <ImageContent
-        reference={reference}
-        folderPath={folderPath}
-        isFullscreenReference
-        deviceType={DeviceType.Desktop}
-      />,
-    );
+    render(<ImageContent reference={reference} folderPath={folderPath} isFullscreenReference />);
     const image = screen.getByRole('img', { name: /document.pdf/i });
     expect(image).toHaveClass('w-full', 'max-h-full');
-  });
-
-  test('applies correct class when isFullscreenReference is false', () => {
-    render(
-      <ImageContent
-        reference={reference}
-        folderPath={folderPath}
-        isFullscreenReference={false}
-        deviceType={DeviceType.Desktop}
-      />,
-    );
-    const image = screen.getByRole('img', { name: /document.pdf/i });
-    expect(image).toHaveClass('h-[300px]');
   });
 });

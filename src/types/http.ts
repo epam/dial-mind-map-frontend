@@ -31,3 +31,8 @@ export interface AnonymUserSession {
   token?: string;
   requestQuota?: number;
 }
+
+export interface ChatAppCookie {
+  theme: string;
+  id: string;
+}

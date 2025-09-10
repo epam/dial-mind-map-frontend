@@ -1,5 +1,4 @@
 import { UnknownAction } from '@reduxjs/toolkit';
-import cloneDeep from 'lodash-es/cloneDeep';
 import { combineEpics } from 'redux-observable';
 import {
   catchError,
@@ -7,7 +6,6 @@ import {
   concatMap,
   EMPTY,
   filter,
-  forkJoin,
   from,
   iif,
   map,
@@ -24,375 +22,40 @@ import {
   withLatestFrom,
 } from 'rxjs';
 
-import { AI_ROBOT_ICON_NAME } from '@/constants/app';
 import { errorsMessages } from '@/constants/errors';
 import {
   AnonymSessionCSRFTokenHeaderName,
   DeploymentIdHeaderName,
   RecaptchaRequiredHeaderName,
 } from '@/constants/http';
-import { AttachmentTitle, ChatBody, Conversation, Message, Role } from '@/types/chat';
+import { ChatBody, Conversation, Message, PlaybackAction, PlaybackActionType, Role, ViewState } from '@/types/chat';
 import { EntityType } from '@/types/common';
 import { DialAIError } from '@/types/error';
 import { NodesMIMEType } from '@/types/files';
-import { Edge, Element, GraphElement, Node } from '@/types/graph';
-import { StorageType } from '@/types/storage';
+import { Element, Node } from '@/types/graph';
 import { ChatRootEpic } from '@/types/store';
-import {
-  generateUniqueConversationName,
-  getConversationInfoFromId,
-  getFocusNodeResponseId,
-  getLocalConversationInfo,
-} from '@/utils/app/conversation';
+import { cleanGraphElementsForPlayback } from '@/utils/app/clean';
+import { generateUniqueConversationName } from '@/utils/app/conversation';
 import { ConversationService } from '@/utils/app/data/conversation-service';
-import { DataService } from '@/utils/app/data/data-service';
-import { adjustVisitedNodes } from '@/utils/app/graph/common';
-import { isEdge } from '@/utils/app/graph/typeGuards';
 import { isEntityIdLocal } from '@/utils/app/id';
 import { mergeMessages, parseStreamMessages } from '@/utils/app/merge-streams';
 
 import { anonymSessionActions, AnonymSessionSelectors } from '../anonymSession/anonymSession.slice';
-import { ApplicationActions, ApplicationSelectors } from '../application/application.reducer';
-import { BucketActions, BucketSelectors } from '../bucket/bucket.reducer';
+import { ApplicationSelectors } from '../application/application.reducer';
+import { BucketSelectors } from '../bucket/bucket.reducer';
 import { MindmapActions, MindmapSelectors } from '../mindmap/mindmap.reducers';
-import { ChatUIActions, ChatUISelectors, selectIsAllowApiKey } from '../ui/ui.reducers';
+import { PlaybackSelectors } from '../playback/playback.selectors';
+import { ChatUIActions, ChatUISelectors } from '../ui/ui.reducers';
 import { checkForUnauthorized } from '../utils/checkForUnauthorized';
 import { globalCatchChatUnauthorized } from '../utils/globalCatchUnauthorized';
-import { ConversationActions, ConversationInitialState, ConversationSelectors } from './conversation.reducers';
-
-type AppActions =
-  | ReturnType<typeof MindmapActions.fetchGraph>
-  | ReturnType<typeof ConversationActions.getConversations>
-  | ReturnType<typeof ApplicationActions.fetchApplicationStart>
-  | ReturnType<typeof ConversationActions.initConversation>
-  | ReturnType<typeof ApplicationActions.subscribe>;
-
-const initEpic: ChatRootEpic = (action$, state$) =>
-  action$.pipe(
-    filter(ConversationActions.init.match),
-
-    switchMap(({ payload }) => {
-      return concat(
-        of(BucketActions.fetchBucketStart()).pipe(),
-
-        action$.pipe(
-          filter(BucketActions.fetchBucketSuccess.match),
-          take(1),
-          withLatestFrom(state$),
-          switchMap(() => {
-            return concat(
-              of(ApplicationActions.fetchApplicationStart(payload.applicationId)).pipe(),
-              action$.pipe(
-                filter(ApplicationActions.fetchApplicationSuccess.match),
-                take(1),
-                withLatestFrom(state$),
-                switchMap(([, state]) => {
-                  const isAllowApiKey = ChatUISelectors.selectIsAllowApiKey(state);
-                  const application = ApplicationSelectors.selectApplication(state);
-
-                  // If API key is allowed, we need to initialize DataService with BrowserStorage
-                  if (isAllowApiKey) {
-                    DataService.init(StorageType.BrowserStorage);
-                  }
-
-                  const conversationInfo = isAllowApiKey
-                    ? getLocalConversationInfo(application)
-                    : getConversationInfoFromId(payload.conversationId);
-
-                  const independentActions = forkJoin({
-                    mindmap: of(MindmapActions.fetchGraph()),
-                    getConversations: of(ConversationActions.getConversations()),
-                    subscribe: of(ApplicationActions.subscribe()),
-                  });
-
-                  const conversationAction =
-                    (conversationInfo.bucket !== 'local' && payload.conversationId) ||
-                    conversationInfo.bucket === 'default-bucket'
-                      ? ConversationService.getConversation(conversationInfo).pipe(
-                          map(conversation =>
-                            conversation ? ConversationActions.initConversation(conversation) : null,
-                          ),
-                          catchError(() => {
-                            console.warn("⚠️ Can't retrieve conversation");
-                            return of(null);
-                          }),
-                        )
-                      : of(null);
-
-                  return forkJoin({ independent: independentActions, conversation: conversationAction }).pipe(
-                    switchMap(({ independent, conversation }) => {
-                      const hasAppProperties = ApplicationSelectors.selectHasAppProperties(state);
-                      const actions: AppActions[] = [independent.getConversations, independent.subscribe];
-
-                      if (hasAppProperties) {
-                        actions.unshift(independent.mindmap);
-                      }
-
-                      if (conversation) {
-                        actions.unshift(conversation);
-                      }
-                      return from(actions);
-                    }),
-                  );
-                }),
-              ),
-            );
-          }),
-        ),
-      );
-    }),
-  );
-
-const updateResponseOfMessageEpic: ChatRootEpic = (action$, state$) =>
-  action$.pipe(
-    filter(ConversationActions.updateResponseOfMessage.match),
-    switchMap(action => {
-      const { payload } = action;
-      const conversation = ConversationSelectors.selectConversation(state$.value);
-
-      const { values, messageId } = payload;
-      const userMessageIndex = conversation.messages.findIndex(m => m.id === messageId);
-      const responseMessageIndex = userMessageIndex + 1;
-
-      if (conversation.messages.length >= responseMessageIndex) {
-        return of(
-          ConversationActions.updateMessage({
-            values: values,
-            messageIndex: responseMessageIndex,
-          }),
-        );
-      }
-      return EMPTY;
-    }),
-  );
-
-const updateMessageEpic: ChatRootEpic = (action$, state$) =>
-  action$.pipe(
-    filter(ConversationActions.updateMessage.match),
-    map(({ payload }) => ({
-      payload,
-      conversation: ConversationSelectors.selectConversation(state$.value),
-      focusNodeId: MindmapSelectors.selectFocusNodeId(state$.value),
-      visitedNodes: MindmapSelectors.selectVisitedNodes(state$.value),
-    })),
-    switchMap(({ conversation, payload, focusNodeId, visitedNodes }) => {
-      if (!conversation || !conversation.messages[payload.messageIndex]) {
-        return EMPTY;
-      }
-
-      const attachment = payload.values.custom_content?.attachments?.find(a => a.type === NodesMIMEType);
-      const isAiGenerated =
-        payload.values.custom_content?.attachments?.some(
-          attachment => attachment.title === AttachmentTitle['Generated graph node'],
-        ) ?? false;
-
-      let customElements: Element<GraphElement>[] = [];
-      let customNode: Node | null = null;
-      const customViewElements = cloneDeep(conversation.customViewState.customElements);
-      const elements = MindmapSelectors.selectGraphElements(state$.value);
-
-      if (attachment?.data) {
-        customElements = JSON.parse(attachment.data) as Element<GraphElement>[];
-
-        customElements.forEach(el => {
-          if (isEdge(el.data)) {
-            if (!customViewElements.edges.some(e => e.data.id === el.data.id)) {
-              customViewElements.edges.push(el as Element<Edge>);
-            }
-          } else {
-            if (!customViewElements.nodes.some(n => n.data.id === el.data.id)) {
-              const currentIcon = (el.data as Node).icon
-                ? (el.data as Node).icon
-                : isAiGenerated
-                  ? AI_ROBOT_ICON_NAME
-                  : undefined;
-              const node = { ...el, data: { ...el.data, icon: currentIcon } } as Element<Node>;
-              customViewElements.nodes.push(node);
-            }
-            customNode = el.data as Node;
-          }
-        });
-      }
-
-      const messages = [...conversation.messages];
-      messages[payload.messageIndex] = {
-        ...messages[payload.messageIndex],
-        ...payload.values,
-      };
-
-      const newElements = customElements.filter(e => !elements.some(el => el.data.id === e.data.id));
-
-      if (newElements.length === 0 && !customNode && !payload.isInitialization) {
-        return concat(
-          of(
-            ConversationActions.updateConversation({
-              values: { messages: [...messages] },
-              isInitialization: payload.isInitialization,
-            }),
-          ),
-        );
-      }
-
-      const hasNewElements =
-        conversation.customViewState.customElements.nodes.length !== customViewElements.nodes.length ||
-        conversation.customViewState.customElements.edges.length !== customViewElements.edges.length;
-
-      const customViewState = {
-        ...conversation.customViewState,
-        customElements: customViewElements,
-      };
-
-      const isDifferentNode = Boolean(customNode) && focusNodeId !== undefined && customNode!.id !== focusNodeId;
-      let filteredMessages: typeof messages = messages;
-      let isFocusNodeNeedToUpdate = false;
-
-      if (isDifferentNode) {
-        isFocusNodeNeedToUpdate = true;
-        customViewState.focusNodeId = customNode!.id;
-        customViewState.visitedNodeIds = adjustVisitedNodes(
-          cloneDeep(conversation.customViewState.visitedNodeIds),
-          focusNodeId,
-        );
-        customViewState.customElements.edges = customViewState.customElements.edges.filter(
-          edge => !edge.data.id.includes(focusNodeId),
-        );
-
-        const wasVisited = Boolean(visitedNodes[customNode!.id]);
-        if (wasVisited) {
-          filteredMessages = messages.filter(m => !m.id || !m.id.includes(focusNodeId));
-        } else {
-          filteredMessages = [...messages];
-        }
-      } else {
-        filteredMessages = [...messages];
-      }
-
-      const actions: Observable<UnknownAction>[] = [];
-
-      actions.push(
-        of(
-          ConversationActions.updateConversation({
-            values: { messages: filteredMessages, customViewState },
-            isInitialization: payload.isInitialization,
-          }),
-        ),
-      );
-
-      if (hasNewElements || isFocusNodeNeedToUpdate) {
-        actions.push(of(MindmapActions.fetchGraph(customViewState)));
-      }
-
-      const previousNodeId = visitedNodes[focusNodeId];
-      if (
-        customNode &&
-        previousNodeId !== (customNode as Node).id &&
-        !customViewState.visitedNodeIds[(customNode as Node).id]
-      ) {
-        customViewState.visitedNodeIds[(customNode as Node).id] = previousNodeId;
-      }
-
-      if (isFocusNodeNeedToUpdate) {
-        actions.push(of(MindmapActions.setFocusNodeId(customNode!.id)));
-        actions.push(
-          of(
-            MindmapActions.setVisitedNodes({
-              ...customViewState.visitedNodeIds,
-            }),
-          ),
-        );
-      }
-
-      return concat(...actions);
-    }),
-  );
-
-const sendMessagesEpic: ChatRootEpic = action$ =>
-  action$.pipe(
-    filter(ConversationActions.sendMessages.match),
-    switchMap(({ payload }) => {
-      return concat(
-        of(ConversationActions.createAbortController()),
-        of(
-          ConversationActions.sendMessage({
-            message: payload.message,
-            deleteCount: payload.deleteCount,
-            customFields: payload.customFields,
-            captchaToken: payload.captchaToken,
-          }),
-        ),
-      );
-    }),
-  );
-
-const sendMessageEpic: ChatRootEpic = (action$, state$) =>
-  action$.pipe(
-    filter(ConversationActions.sendMessage.match),
-    map(({ payload }) => ({
-      payload,
-      conversation: ConversationSelectors.selectConversation(state$.value),
-    })),
-    map(({ payload, conversation }) => {
-      const messageModel: Message[EntityType.Model] = {
-        id: conversation.model.id,
-      };
-      const messageSettings: Message['settings'] = {
-        prompt: conversation.prompt,
-        temperature: conversation.temperature,
-      };
-
-      const assistantMessage: Message = {
-        id: getFocusNodeResponseId(payload.message.id!),
-        content: '',
-        model: messageModel,
-        settings: messageSettings,
-        role: Role.Assistant,
-      };
-
-      const userMessage: Message = {
-        ...payload.message,
-        model: messageModel,
-        settings: messageSettings,
-      };
-
-      const currentMessages =
-        payload.deleteCount && payload.deleteCount > 0
-          ? conversation.messages.slice(0, payload.deleteCount * -1 || undefined)
-          : conversation.messages;
-
-      const updatedMessages = currentMessages.concat(userMessage, assistantMessage);
-
-      const updatedConversation: Conversation = {
-        ...conversation,
-        lastActivityDate: Date.now(),
-        messages: updatedMessages,
-        isMessageStreaming: true,
-      };
-
-      return {
-        updatedConversation,
-        assistantMessage,
-        customFields: payload.customFields,
-        captchaToken: payload.captchaToken,
-      };
-    }),
-    switchMap(({ updatedConversation, assistantMessage, customFields, captchaToken }) => {
-      return concat(
-        of(
-          ConversationActions.updateConversation({
-            values: updatedConversation,
-          }),
-        ),
-        of(
-          ConversationActions.streamMessage({
-            conversation: updatedConversation,
-            message: assistantMessage,
-            customFields,
-            captchaToken,
-          }),
-        ),
-      );
-    }),
-  );
+import { ConversationActions, ConversationSelectors } from './conversation.reducers';
+import { getConversationsEpic } from './epics/getConversations.epic';
+import { initEpic } from './epics/init.epic';
+import { resetConversationEpic } from './epics/resetConversation.epic';
+import { sendMessageEpic } from './epics/sendMessage.epic';
+import { sendMessagesEpic } from './epics/sendMessages.epic';
+import { updateMessageEpic } from './epics/updateMessage.epic';
+import { updateResponseOfMessageEpic } from './epics/updateResponseOfMessage.epic';
 
 const streamMessageEpic: ChatRootEpic = (action$, state$) =>
   action$.pipe(
@@ -676,7 +339,7 @@ const addOrUpdateMessagesEpic: ChatRootEpic = (action$, state$) =>
     })),
     switchMap(({ payload, conversation }) => {
       const { messages } = conversation;
-      const { messages: newMessages, isInitialization } = payload;
+      const { messages: newMessages, isInitialization, needToUpdateInBucket } = payload;
       const updatedMessages = [...messages];
 
       newMessages.forEach(message => {
@@ -700,6 +363,7 @@ const addOrUpdateMessagesEpic: ChatRootEpic = (action$, state$) =>
         ConversationActions.updateConversation({
           values: { messages: updatedMessages },
           isInitialization,
+          needToUpdateInBucket,
         }),
       );
     }),
@@ -735,12 +399,19 @@ const deleteMessageEpic: ChatRootEpic = (action$, state$) =>
 const updateConversationEpic: ChatRootEpic = (action$, state$) =>
   action$.pipe(
     filter(ConversationActions.updateConversation.match),
-    withLatestFrom(state$.pipe(map(selectIsAllowApiKey))),
+    withLatestFrom(state$.pipe(map(ChatUISelectors.selectIsAllowApiKey))),
+
     mergeMap(([action, isAllowApiKey]) => {
       const { payload } = action;
       const conversation = ConversationSelectors.selectConversation(state$.value);
       const bucketId = BucketSelectors.selectBucketId(state$.value);
       const applicationReference = ApplicationSelectors.selectApplication(state$.value)?.reference;
+
+      const isPlayback = PlaybackSelectors.selectIsPlayback(state$.value);
+      if (isPlayback) {
+        return EMPTY;
+      }
+
       const { values } = payload;
 
       const newConversation: Conversation = {
@@ -752,6 +423,30 @@ const updateConversationEpic: ChatRootEpic = (action$, state$) =>
       const isPreview = ChatUISelectors.selectIsPreview(state$.value);
 
       if (payload.isInitialization) {
+        if (!newConversation.id && !isPreview && !conversation.customViewState.playbackActions) {
+          const mindmapElements = MindmapSelectors.selectGraphElements(state$.value);
+          const depth = MindmapSelectors.selectDepth(state$.value);
+          const playbackActions = [
+            {
+              type: PlaybackActionType.Init,
+              mindmap: {
+                elements: cleanGraphElementsForPlayback(mindmapElements),
+                focusNodeId: '',
+                visitedNodes: {},
+                depth,
+              },
+            },
+          ];
+          return of(
+            ConversationActions.updateConversationSuccess({
+              conversation: {
+                ...newConversation,
+                customViewState: { ...newConversation.customViewState, playbackActions },
+              },
+            }),
+          );
+        }
+
         return of(
           ConversationActions.updateConversationSuccess({
             conversation: newConversation,
@@ -776,6 +471,41 @@ const updateConversationEpic: ChatRootEpic = (action$, state$) =>
             return EMPTY;
           }
 
+          const mindmapElements = MindmapSelectors.selectGraphElements(state$.value);
+          const visitedNodes = MindmapSelectors.selectVisitedNodes(state$.value);
+          const focusNodeId = MindmapSelectors.selectFocusNodeId(state$.value);
+          const hasMessageInConversation = newConversation.messages.some(
+            (message, index) => message.id === focusNodeId && index < newConversation.messages.length - 2,
+          );
+          const depth = MindmapSelectors.selectDepth(state$.value);
+          const playbackActions: PlaybackAction[] = [
+            {
+              type: PlaybackActionType.FillInput,
+              mindmap: {
+                elements: cleanGraphElementsForPlayback(mindmapElements),
+                focusNodeId,
+                visitedNodes,
+                depth,
+              },
+            },
+            {
+              type: hasMessageInConversation
+                ? PlaybackActionType.ChangeFocusNode
+                : PlaybackActionType.UpdateConversation,
+              mindmap: {
+                elements: cleanGraphElementsForPlayback(mindmapElements),
+                focusNodeId,
+                visitedNodes,
+                depth,
+              },
+            },
+          ];
+
+          const customViewState: ViewState = {
+            ...conversation.customViewState,
+            playbackActions: [...(newConversation.customViewState.playbackActions ?? []), ...playbackActions],
+          };
+
           const createdConversation: Conversation = {
             id: `conversations/${bucketId}/${applicationReference}${conversationNamePrefix}${newConversationName}`,
             name: `${newConversationName}`,
@@ -786,7 +516,7 @@ const updateConversationEpic: ChatRootEpic = (action$, state$) =>
             model: { id: applicationReference },
             prompt: newConversation.prompt || '',
             temperature: newConversation.temperature || 1,
-            customViewState: newConversation.customViewState,
+            customViewState: customViewState,
             selectedAddons: newConversation.selectedAddons || [],
           };
 
@@ -819,8 +549,65 @@ const updateConversationEpic: ChatRootEpic = (action$, state$) =>
           );
         }
       }
+      const mindmapElements = MindmapSelectors.selectGraphElements(state$.value);
+      const visitedNodes = MindmapSelectors.selectVisitedNodes(state$.value);
+      const focusNodeId = MindmapSelectors.selectFocusNodeId(state$.value);
+      const hasMessageInConversation = newConversation.messages.some(
+        (message, index) => message.id === focusNodeId && index < newConversation.messages.length - 2,
+      );
+      const depth = MindmapSelectors.selectDepth(state$.value);
+      const lastActionDepth = newConversation.customViewState.playbackActions?.at(-1)?.mindmap.depth;
+      const playbackActions: PlaybackAction[] = [];
+      if (lastActionDepth === depth) {
+        playbackActions.push(
+          {
+            type: PlaybackActionType.FillInput,
+            mindmap: {
+              elements: cleanGraphElementsForPlayback(mindmapElements),
+              focusNodeId,
+              visitedNodes,
+              depth: depth,
+            },
+          },
+          {
+            type: hasMessageInConversation ? PlaybackActionType.ChangeFocusNode : PlaybackActionType.UpdateConversation,
+            mindmap: {
+              elements: cleanGraphElementsForPlayback(mindmapElements),
+              focusNodeId,
+              visitedNodes,
+              depth: depth,
+            },
+          },
+        );
+      } else {
+        playbackActions.push({
+          type: PlaybackActionType.ChangeDepth,
+          mindmap: {
+            elements: cleanGraphElementsForPlayback(mindmapElements),
+            focusNodeId,
+            visitedNodes,
+            depth: depth,
+          },
+        });
+      }
+
+      const updatedCustomViewState: ViewState = {
+        ...conversation.customViewState,
+        playbackActions: [...(conversation.customViewState.playbackActions ?? []), ...playbackActions],
+      };
+
+      newConversation.customViewState =
+        payload.needToUpdateInBucket && !conversation.isMessageStreaming
+          ? updatedCustomViewState
+          : newConversation.customViewState;
+
       return concat(
-        of(ConversationActions.saveConversation(newConversation)),
+        of(
+          ConversationActions.saveConversation({
+            conversation: newConversation,
+            needToUpdateInBucket: payload.needToUpdateInBucket,
+          }),
+        ),
         of(
           ConversationActions.updateConversationSuccess({
             conversation: newConversation,
@@ -880,61 +667,25 @@ const createConversationEpic: ChatRootEpic = (action$, state$) =>
     ),
   );
 
-const saveConversationEpic: ChatRootEpic = action$ =>
+const saveConversationEpic: ChatRootEpic = (action$, state$) =>
   action$.pipe(
     filter(ConversationActions.saveConversation.match),
-    filter(action => !action.payload.isMessageStreaming), // shouldn't save during streaming
-    filter(action => action.payload.messages.at(-1)?.role !== Role.User),
-    concatMap(({ payload: newConversation }) => {
-      if (isEntityIdLocal(newConversation) || !newConversation.id) {
+    filter(action => !action.payload.conversation.isMessageStreaming), // shouldn't save during streaming
+    filter(action => action.payload.conversation.messages.at(-1)?.role !== Role.User),
+    map(({ payload }) => ({
+      isPlayback: PlaybackSelectors.selectIsPlayback(state$.value),
+      payload,
+    })),
+    concatMap(({ payload, isPlayback }) => {
+      const { conversation, needToUpdateInBucket } = payload;
+      if (isEntityIdLocal(conversation) || !conversation.id || !needToUpdateInBucket || isPlayback) {
         return EMPTY;
       }
 
-      return ConversationService.updateConversation(newConversation).pipe(
-        map(updatedConversation => ConversationActions.saveConversationSuccess({ conversation: updatedConversation })),
+      return ConversationService.updateConversation(conversation).pipe(
+        map(response => ConversationActions.saveConversationSuccess({ conversation: { ...response } })),
         catchError(() => {
           return of(ChatUIActions.showErrorToast('An error occurred while saving the conversation.'));
-        }),
-      );
-    }),
-  );
-
-const getConversationsEpic: ChatRootEpic = (action$, state$) =>
-  action$.pipe(
-    filter(ConversationActions.getConversations.match),
-    withLatestFrom(state$.pipe(map(selectIsAllowApiKey))),
-    withLatestFrom(state$.pipe(map(BucketSelectors.selectBucketId))),
-    switchMap(([[, isAllowApiKey], bucketId]) => {
-      if (!bucketId) {
-        console.error('Bucket ID is missing');
-        return EMPTY;
-      }
-
-      if (isAllowApiKey) {
-        return of(ConversationActions.getConversationsSuccess({ conversations: [] }));
-      }
-
-      return ConversationService.getConversations(`conversations/${bucketId}`, true).pipe(
-        switchMap(conversations => of(ConversationActions.getConversationsSuccess({ conversations }))),
-        catchError(() => {
-          console.error('Conversations fetching failed');
-          return EMPTY;
-        }),
-      );
-    }),
-  );
-
-const resetConversationEpic: ChatRootEpic = (action$, state$) =>
-  action$.pipe(
-    filter(ConversationActions.resetConversation.match),
-    withLatestFrom(state$.pipe(map(ConversationSelectors.selectConversation))),
-    switchMap(([, conversation]) => {
-      return of(
-        ConversationActions.updateConversation({
-          values: {
-            messages: [conversation.messages[0], conversation.messages[1]],
-            customViewState: ConversationInitialState.conversation.customViewState,
-          },
         }),
       );
     }),

@@ -1,11 +1,12 @@
 import { IconCheck, IconLink } from '@tabler/icons-react';
 import { IconFile, IconFileTypeHtml, IconFileTypePdf } from '@tabler/icons-react';
 import classNames from 'classnames';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import Tooltip from '@/components/builder/common/Tooltip';
 import IconPptx from '@/icons/pptx.svg';
 import { GenerationStatus, Source, SourceEditMode, SourceStatus, SourceType } from '@/types/sources';
+import { isValidUrl } from '@/utils/app/common';
 
 interface Props {
   field: Source;
@@ -23,6 +24,7 @@ interface Props {
   generationStatus: GenerationStatus | null;
   inProgressUrls: string[];
   globalSourceName?: string;
+  onPasteList: (links: string[]) => void;
 }
 
 const getFileIcon = (type?: string) => {
@@ -40,7 +42,7 @@ const getFileIcon = (type?: string) => {
   }
 };
 
-export const SourceInputField: React.FC<Props> = ({
+export const SourceInputField = ({
   field,
   index,
   editableIndex,
@@ -56,7 +58,8 @@ export const SourceInputField: React.FC<Props> = ({
   generationStatus,
   inProgressUrls,
   globalSourceName,
-}) => {
+  onPasteList,
+}: Props) => {
   const [display, setDisplay] = useState(
     editableIndex === index && editMode === 'edit' ? value : (globalSourceName ?? value),
   );
@@ -70,7 +73,27 @@ export const SourceInputField: React.FC<Props> = ({
     (isHovered || isSelected) &&
     (!field.name || !inProgressUrls.includes(field.name)) &&
     field.status !== SourceStatus.INPROGRESS &&
-    (editableIndex ?? -1) < 0;
+    field.status !== SourceStatus.FAILED &&
+    editableIndex !== index;
+
+  const handlePaste = useCallback(
+    (event: React.ClipboardEvent<HTMLInputElement>) => {
+      event.preventDefault();
+
+      const pastedText = event.clipboardData.getData('text');
+      const rows = Array.from(new Set(pastedText.split(/\r?\n/)));
+      const extractedLinks = rows.filter(isValidUrl);
+
+      if (extractedLinks.length > 1) {
+        onPasteList(extractedLinks);
+      } else {
+        const linkValue = extractedLinks[0];
+        setDisplay(linkValue);
+        onChange(linkValue);
+      }
+    },
+    [onPasteList, setDisplay, onChange],
+  );
 
   return (
     <div
@@ -122,6 +145,7 @@ export const SourceInputField: React.FC<Props> = ({
             setDisplay(newValue);
             onChange(newValue);
           }}
+          onPaste={handlePaste}
           ref={inputRef}
           readOnly={editableIndex !== index}
           onKeyDown={e => onKeyDown(e, index)}

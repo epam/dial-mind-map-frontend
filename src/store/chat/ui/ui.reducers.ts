@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+import { AuthUiMode } from '@/types/auth';
 import { ToastType } from '@/types/toasts';
 
 import { ChatRootState } from '..';
@@ -18,11 +19,14 @@ export interface UIState {
   deviceType: DeviceType;
   dialChatHost: string;
   mindmapIframeTitle: string;
-  theme: string;
   isPreview?: boolean;
   isAllowApiKeyAuth: boolean;
   chatDisclaimer?: string;
   providers: string[];
+  themeName: string;
+  authUiMode: AuthUiMode;
+  isOffline?: boolean;
+  isFitGraphAvailable: boolean;
 }
 
 const initialState: UIState = {
@@ -31,10 +35,13 @@ const initialState: UIState = {
   deviceType: DeviceType.Unknown,
   dialChatHost: '',
   mindmapIframeTitle: '',
-  theme: '',
+  themeName: 'dark',
   isAllowApiKeyAuth: false,
   chatDisclaimer: undefined,
   providers: [],
+  authUiMode: AuthUiMode.Popup,
+  isOffline: false,
+  isFitGraphAvailable: false,
 };
 
 export const chatUISlice = createSlice({
@@ -67,11 +74,17 @@ export const chatUISlice = createSlice({
         icon?: JSX.Element;
       }>,
     ) => state,
-    setTheme: (state, { payload }: PayloadAction<string>) => {
-      state.theme = payload;
+    setThemeName: (state, { payload }: PayloadAction<string>) => {
+      state.themeName = payload;
     },
     setIsPreview: (state, { payload }: PayloadAction<boolean>) => {
       state.isPreview = payload;
+    },
+    setIsOffline: (state, { payload }: PayloadAction<boolean>) => {
+      state.isOffline = payload;
+    },
+    setIsFitGraphAvailable: (state, { payload }: PayloadAction<boolean>) => {
+      state.isFitGraphAvailable = payload;
     },
   },
 });
@@ -80,23 +93,29 @@ const rootSelector = (state: ChatRootState): UIState => state.chatUI;
 
 const selectIsPreview = createSelector([rootSelector], state => state.isPreview);
 
-export const selectIsMapHidden = createSelector([rootSelector], state => state.isMapHidden);
+const selectIsMapHidden = createSelector([rootSelector], state => state.isMapHidden);
 
-export const selectIsChatHidden = createSelector([rootSelector], state => state.isChatHidden);
+const selectIsChatHidden = createSelector([rootSelector], state => state.isChatHidden);
 
-export const selectDeviceType = createSelector([rootSelector], state => state.deviceType);
+const selectDeviceType = createSelector([rootSelector], state => state.deviceType);
 
-export const selectDialChatHost = createSelector([rootSelector], state => state.dialChatHost);
+const selectDialChatHost = createSelector([rootSelector], state => state.dialChatHost);
 
-export const selectMindmapIframeTitle = createSelector([rootSelector], state => state.mindmapIframeTitle);
+const selectMindmapIframeTitle = createSelector([rootSelector], state => state.mindmapIframeTitle);
 
-export const selectIsAllowApiKey = createSelector([rootSelector], state => state.isAllowApiKeyAuth);
+const selectIsAllowApiKey = createSelector([rootSelector], state => state.isAllowApiKeyAuth);
 
-export const selectChatDisclaimer = createSelector([rootSelector], state => state.chatDisclaimer);
+const selectChatDisclaimer = createSelector([rootSelector], state => state.chatDisclaimer);
 
-export const selectProviders = createSelector([rootSelector], state => state.providers);
+const selectProviders = createSelector([rootSelector], state => state.providers);
 
-export const selectTheme = createSelector([rootSelector], state => state.theme);
+const selectThemeName = createSelector([rootSelector], state => state.themeName);
+
+const selectAuthUiMode = createSelector([rootSelector], state => state.authUiMode);
+
+const selectIsOffline = createSelector([rootSelector], state => state.isOffline);
+
+const selectIsFitGraphAvailable = createSelector([rootSelector], state => state.isFitGraphAvailable);
 
 export const ChatUIActions = chatUISlice.actions;
 
@@ -110,5 +129,8 @@ export const ChatUISelectors = {
   selectIsAllowApiKey,
   selectChatDisclaimer,
   selectProviders,
-  selectTheme,
+  selectThemeName,
+  selectAuthUiMode,
+  selectIsOffline,
+  selectIsFitGraphAvailable,
 };

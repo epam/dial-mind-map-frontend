@@ -6,4 +6,5 @@ export interface Application {
   application_properties: {
     mindmap_folder: string;
   } | null;
+  display_name?: string;
 }

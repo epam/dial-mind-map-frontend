@@ -5,14 +5,16 @@ import classNames from 'classnames';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef } from 'react';
 
-import Loader from '@/components/builder/common/Loader';
 import SourceEditor from '@/components/builder/editors/sources/SourcesEditor';
 import { GeneratingErrorView } from '@/components/builder/GeneratingErrorView';
 import { GeneratingLoaderView } from '@/components/builder/GeneratingLoaderView';
 import { MainToolbar } from '@/components/builder/toolbar/MainToolbar';
 import { AuthProviderError } from '@/components/common/AuthProviderError';
+import { Forbidden } from '@/components/common/Forbidden';
+import Loader from '@/components/common/Loader';
 import { Login } from '@/components/common/Login';
-import { useSourcesInitializer } from '@/hooks/builder/sources/useSourcesInitializer';
+import { NetworkOfflineBanner } from '@/components/common/NetworkOfflineBanner';
+import { useApplicationInitializer } from '@/hooks/builder/sources/useApplicationInitializer';
 import { useHistoryHotKeys } from '@/hooks/builder/useHistoryHotKeys';
 import { useAuth } from '@/hooks/useAuth';
 import { useChatAuthProvider } from '@/hooks/useChatAuthProvider';
@@ -21,7 +23,9 @@ import { ApplicationSelectors } from '@/store/builder/application/application.re
 import { AuthActions, AuthSelectors } from '@/store/builder/auth/auth.slice';
 import { BuilderActions, BuilderSelectors } from '@/store/builder/builder/builder.reducers';
 import { useBuilderDispatch, useBuilderSelector } from '@/store/builder/hooks';
+import { SourcesSelectors } from '@/store/builder/sources/sources.selectors';
 import { UISelectors } from '@/store/builder/ui/ui.reducers';
+import { Pages } from '@/types/common';
 import { GenerationStatus } from '@/types/sources';
 import { isClientSessionValid } from '@/utils/auth/session';
 
@@ -40,10 +44,12 @@ const SourcesPage = () => {
   const chatVisualizerConnector = useRef<ChatVisualizerConnector | null>(null);
 
   const isApplicationLoading = useBuilderSelector(ApplicationSelectors.selectApplicationLoading);
-  const isSourcesLoading = useBuilderSelector(BuilderSelectors.selectIsSourcesLoading);
+  const isSourcesLoading = useBuilderSelector(SourcesSelectors.selectIsSourcesLoading);
 
   const redirectToSignIn = useBuilderSelector(AuthSelectors.selectRedirectToSignin);
+  const redirectToForbidden = useBuilderSelector(AuthSelectors.selectRedirectToForbidden);
   const resetRedirect = useCallback(() => dispatch(AuthActions.resetRedirect()), [dispatch]);
+  const authUiMode = useBuilderSelector(UISelectors.selectAuthUiMode);
 
   const isAllowApiKeyAuth = useBuilderSelector(UISelectors.selectIsAllowApiKey);
   const providers = useBuilderSelector(UISelectors.selectProviders);
@@ -53,9 +59,15 @@ const SourcesPage = () => {
     providers: providers,
   });
 
-  const { session, setShouldLogin, shouldLogin } = useAuth(redirectToSignIn, resetRedirect, isAllowApiKeyAuth);
+  const { session, shouldLogin, onLogin } = useAuth(
+    redirectToSignIn,
+    resetRedirect,
+    isAllowApiKeyAuth,
+    authUiMode,
+    isAllowProvider,
+  );
 
-  useSourcesInitializer();
+  useApplicationInitializer();
 
   useHistoryHotKeys();
 
@@ -73,9 +85,11 @@ const SourcesPage = () => {
     }
   }, [isInitialized, dialHost, mindmapIframeTitle]);
 
+  const isOffline = useBuilderSelector(UISelectors.selectIsOffline);
+
   useEffect(() => {
     if (generationComplete) {
-      router.push(`/content?${new URLSearchParams(window.location.search).toString()}`);
+      router.push(`/${Pages.CONTENT}?${new URLSearchParams(window.location.search).toString()}`);
       dispatch(BuilderActions.resetGenerationComplete());
     }
   }, [generationComplete, dispatch, router]);
@@ -84,15 +98,12 @@ const SourcesPage = () => {
     return <AuthProviderError provider={chatAuthProvider ?? ''} availableProviders={providers} />;
   }
 
+  if (redirectToForbidden) {
+    return <Forbidden />;
+  }
+
   if ((!session || !isClientSessionValid(session) || redirectToSignIn) && !isAllowApiKeyAuth) {
-    return (
-      <Login
-        onClick={() => {
-          setShouldLogin(true);
-        }}
-        shouldLogin={shouldLogin}
-      />
-    );
+    return <Login onClick={onLogin} shouldLogin={shouldLogin} />;
   }
 
   const getContent = () => {
@@ -102,6 +113,9 @@ const SourcesPage = () => {
     if (isRedirect || isApplicationLoading || isSourcesLoading) return <Loader />;
     if (generationStatus === GenerationStatus.NOT_STARTED || generationStatus === GenerationStatus.FINISHED) {
       return <SourceEditor />;
+    }
+    if (isOffline) {
+      return <NetworkOfflineBanner />;
     }
     return null;
   };
@@ -113,10 +127,7 @@ const SourcesPage = () => {
     <>
       {shouldHaveToolbar && <MainToolbar />}
       <div
-        className={classNames(
-          'absolute left-3 w-[calc(100%-24px)] h-[calc(100%-8px)]',
-          shouldHaveToolbar && 'top-[70px] !h-[calc(100%-82px)]',
-        )}
+        className={classNames('w-[calc(100%-24px)] h-[calc(100%-8px)]', shouldHaveToolbar && '!h-[calc(100%-82px)]')}
       >
         {getContent()}
       </div>

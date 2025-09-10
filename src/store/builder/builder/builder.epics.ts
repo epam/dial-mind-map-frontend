@@ -22,12 +22,12 @@ import { Graph } from '@/types/graph';
 import { HTTPMethod } from '@/types/http';
 import { GenerationStatus } from '@/types/sources';
 import { BuilderRootEpic } from '@/types/store';
-import { generateMindmapFolderPath } from '@/utils/app/application';
 import { isEdge } from '@/utils/app/graph/typeGuards';
 
 import { ApplicationSelectors } from '../application/application.reducer';
 import { GraphActions, GraphInitialState, GraphSelectors } from '../graph/graph.reducers';
 import { HistoryActions } from '../history/history.reducers';
+import { SourcesActions } from '../sources/sources.reducers';
 import { UIActions } from '../ui/ui.reducers';
 import { checkForUnauthorized } from '../utils/checkForUnauthorized';
 import { globalCatchUnauthorized } from '../utils/globalCatchUnauthorized';
@@ -40,8 +40,12 @@ import {
   generateEdgesEpic,
   updateEdgeEpic,
 } from './epics/edges.epic';
+import { exportMindmapEpic } from './epics/exportMindmap.epic';
+import { fetchGenerateParamsEpic } from './epics/fetchGenerateParams.epic';
+import { fetchModelsEpic } from './epics/fetchModels.epic';
 import { generateMindmapEpic } from './epics/generateMindmap.epic';
 import { generationCompleteEpic, generationStatusSubscribeEpic } from './epics/generationStatusSubscribe.epic';
+import { importMindmapEpic } from './epics/importMindmap.epic';
 import {
   createNodeEpic,
   deleteNodeEpic,
@@ -51,21 +55,9 @@ import {
   updateNodesPositionsEpic,
 } from './epics/nodes.epic';
 import { regenerateMindmapEpic } from './epics/regenerateMindmap.epic';
-import {
-  changeSourceNameEpic,
-  createSourceEpic,
-  createSourceVersionEpic,
-  deleteSourceEpic,
-  downloadSourceEpic,
-  fetchSourcesEpic,
-  initSourcesEpic,
-  recreateSourceVersionEpic,
-  setActiveSourceVersionEpic,
-  updateSourceEpic,
-} from './epics/sources.epic';
-import { sourceStatusSubscribeEpic } from './epics/sourceStatusSubscribe.epic';
 import { subscribeMindmapEpic } from './epics/subscribeMindmap.epic';
 import { redoEpic, undoEpic } from './epics/undoRedo.epic';
+import { updateGenerateParamsEpic } from './epics/updateGenerateParams.epic';
 
 const patchEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
@@ -130,12 +122,13 @@ const fetchGraphEpic: BuilderRootEpic = (action$, state$) =>
         return throwError(() => new Error('Application is not set'));
       }
 
+      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
+
       return fromFetch(`/api/mindmaps/${encodeURIComponent(name)}/graph`, {
         method: HTTPMethod.GET,
         headers: {
           'Content-Type': 'application/json',
-          [MindmapUrlHeaderName]:
-            application.application_properties?.mindmap_folder ?? generateMindmapFolderPath(application),
+          [MindmapUrlHeaderName]: mindmapFolder,
         },
       }).pipe(
         mergeMap(resp => checkForUnauthorized(resp)),
@@ -216,7 +209,7 @@ const updateEpic: BuilderRootEpic = (action$, state$) =>
 
       if (generationStatus === GenerationStatus.NOT_STARTED || payload.shouldSkipFetchGraph) {
         return of(BuilderActions.setEtag(payload.etag)).pipe(
-          concatMap(() => concat(of(BuilderActions.fetchSources()), of(HistoryActions.fetchUndoRedo()))),
+          concatMap(() => concat(of(SourcesActions.fetchSources()), of(HistoryActions.fetchUndoRedo()))),
         );
       }
 
@@ -224,7 +217,7 @@ const updateEpic: BuilderRootEpic = (action$, state$) =>
         concatMap(() =>
           concat(
             of(BuilderActions.fetchGraph()),
-            of(BuilderActions.fetchSources()),
+            of(SourcesActions.fetchSources()),
             of(HistoryActions.fetchUndoRedo()),
           ),
         ),
@@ -244,13 +237,6 @@ export const BuilderEpics = combineEpics(
   updateNodesPositionsEpic,
   subscribeMindmapEpic,
   updateEpic,
-  fetchSourcesEpic,
-  createSourceEpic,
-  createSourceVersionEpic,
-  recreateSourceVersionEpic,
-  updateSourceEpic,
-  deleteSourceEpic,
-  initSourcesEpic,
   generateEdgesEpic,
   deleteGeneratedEdgesEpic,
   undoEpic,
@@ -261,8 +247,9 @@ export const BuilderEpics = combineEpics(
   generationStatusSubscribeEpic,
   generationCompleteEpic,
   regenerateMindmapEpic,
-  sourceStatusSubscribeEpic,
-  downloadSourceEpic,
-  setActiveSourceVersionEpic,
-  changeSourceNameEpic,
+  fetchModelsEpic,
+  fetchGenerateParamsEpic,
+  updateGenerateParamsEpic,
+  importMindmapEpic,
+  exportMindmapEpic,
 );

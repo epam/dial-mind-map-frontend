@@ -1,6 +1,6 @@
 import { ChangeEvent, useCallback } from 'react';
 
-import { AllowedSourceFilesTypes, BytesInMb } from '@/constants/app';
+import { AllowedSourceFilesTypesList, BytesInMb } from '@/constants/app';
 import { MAX_SOURCE_FILE_SIZE_MB } from '@/constants/settings';
 import { useBuilderDispatch } from '@/store/builder/hooks';
 import { UIActions } from '@/store/builder/ui/ui.reducers';
@@ -9,12 +9,11 @@ import { CreateSource, Source, SourceType } from '@/types/sources';
 import { sanitizeAndReportFiles } from '../utils/files';
 
 interface UseSourceFileUploadProps {
-  folderPath: string;
   watchedSources: Source[];
   handleAddSource: (createSource: CreateSource) => Promise<void>;
 }
 
-export const useSourceFileUpload = ({ folderPath, watchedSources, handleAddSource }: UseSourceFileUploadProps) => {
+export const useSourceFileUpload = ({ watchedSources, handleAddSource }: UseSourceFileUploadProps) => {
   const dispatch = useBuilderDispatch();
 
   const handleSelectFiles = useCallback(
@@ -23,7 +22,7 @@ export const useSourceFileUpload = ({ folderPath, watchedSources, handleAddSourc
       const filtered = sanitizeAndReportFiles(
         chosen,
         dispatch,
-        AllowedSourceFilesTypes,
+        AllowedSourceFilesTypesList,
         MAX_SOURCE_FILE_SIZE_MB * BytesInMb,
       );
 
@@ -45,7 +44,7 @@ export const useSourceFileUpload = ({ folderPath, watchedSources, handleAddSourc
 
       e.target.value = '';
     },
-    [dispatch, folderPath, handleAddSource, watchedSources],
+    [dispatch, handleAddSource, watchedSources],
   );
 
   return { handleSelectFiles };

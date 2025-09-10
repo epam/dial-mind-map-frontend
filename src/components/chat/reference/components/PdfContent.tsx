@@ -10,8 +10,8 @@ import { defaultLayoutPlugin, ToolbarProps, ToolbarSlot } from '@react-pdf-viewe
 import { GlobalWorkerOptions } from 'pdfjs-dist';
 import { useState } from 'react';
 
-import { Spinner } from '@/components/builder/common/Spinner';
 import { Space } from '@/components/common/Space/Space';
+import { Spinner } from '@/components/common/Spinner';
 import { useChatSelector } from '@/store/chat/hooks';
 import { ChatUISelectors } from '@/store/chat/ui/ui.reducers';
 import { DocsReference } from '@/types/graph';
@@ -33,7 +33,7 @@ enum SelectionMode {
 export const PdfContent: React.FC<PdfContentProps> = ({ reference, folderPath, initialPage = 1 }) => {
   const { doc_url } = reference;
   const pdfUrl = `/${constructPath('api', folderPath, doc_url)}`;
-  const theme = useChatSelector(ChatUISelectors.selectTheme);
+  const theme = useChatSelector(ChatUISelectors.selectThemeName);
 
   const renderToolbar = (Toolbar: (props: ToolbarProps) => React.ReactElement) => (
     <Toolbar>

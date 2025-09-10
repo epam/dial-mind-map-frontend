@@ -1,19 +1,39 @@
 import { NodeSingular } from 'cytoscape';
 
+import { DefaultVisitedNodeBgImageOpacity } from '@/constants/app';
+import { PaletteSettings } from '@/types/customization';
+import { SystemNodeDataKeys } from '@/types/graph';
+
 export function extractNumberFromString(value: string): number {
   const match = value.match(/(\d+)/);
   return match ? parseInt(match[0], 10) : NaN;
 }
 
+let canvas: HTMLCanvasElement | null = null;
+let ctx: CanvasRenderingContext2D | null = null;
+
+function initializeCanvas() {
+  canvas = document.createElement('canvas');
+  ctx = canvas.getContext('2d');
+}
+
 export function getWidth(node: any, fontSize?: number) {
-  const ctx = document.createElement('canvas').getContext('2d')!;
+  if (typeof window === 'undefined') {
+    console.warn('measureText is being called on the server side. Returning 0.');
+    return 0;
+  }
+
+  if (!canvas || !ctx) {
+    initializeCanvas();
+  }
+
   const fStyle = node.pstyle('font-style').strValue;
   const size = (fontSize ?? node.pstyle('font-size').pfValue) + 'px';
-  const family = node.pstyle('font-family').strValue;
+  const family = node.style('font-family');
   const weight = node.pstyle('font-weight').strValue;
-  ctx.font = `${fStyle} ${weight} ${size} ${family}`;
+  ctx!.font = `${fStyle} ${weight} ${size} ${family}`;
 
-  return ctx.measureText(node.data('label')).width;
+  return ctx!.measureText(node.data('label')).width;
 }
 
 export function getHeight(node: any, fontSize?: number) {
@@ -38,6 +58,7 @@ export function startPulsate(node: NodeSingular) {
   const hasIcon = node.data('icon') ?? false;
   const up = hasIcon ? [1, 1] : 1;
   const down = hasIcon ? [0.7, 0.3] : 0.3;
+
   node.animate(
     {
       style: {
@@ -58,7 +79,7 @@ export function startPulsate(node: NodeSingular) {
             duration: 900,
             queue: false,
             complete: () => {
-              if (node.data('pulsating')) {
+              if (node.data(SystemNodeDataKeys.Pulsating)) {
                 startPulsate(node);
               }
             },
@@ -68,3 +89,10 @@ export function startPulsate(node: NodeSingular) {
     },
   );
 }
+
+export const getSingleImageBgOpacity = (node: NodeSingular, palette?: PaletteSettings) => {
+  const index = node.data(SystemNodeDataKeys.BranchColorIndex);
+  const currentColors = palette?.branchesColors?.[index];
+  const hasCustomVisitedColor = !currentColors || !!currentColors.visitedTextColor;
+  return hasCustomVisitedColor ? 1 : DefaultVisitedNodeBgImageOpacity;
+};

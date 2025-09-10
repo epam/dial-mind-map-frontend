@@ -1,7 +1,7 @@
 import { IconFile, IconLink } from '@tabler/icons-react';
 import classNames from 'classnames';
 
-import { AllowedSourceFilesTypes } from '@/constants/app';
+import { AllowedSourceFilesTypesList } from '@/constants/app';
 import { CreateSource } from '@/types/sources';
 
 interface Props {
@@ -16,7 +16,7 @@ export const SourceActions = ({ isValid, editableIndex, handleAddSource, handleS
   return (
     <div
       className={classNames(
-        'flex gap-3 bg-layer-3 px-6  sticky py-[9px]',
+        'flex gap-3 bg-layer-3 px-6 py-[9px] sticky bottom-0',
         bottomBorder && 'border-b border-tertiary border-b-0',
       )}
     >
@@ -46,7 +46,7 @@ export const SourceActions = ({ isValid, editableIndex, handleAddSource, handleS
           className="hidden"
           onChange={handleSelectFiles}
           disabled={!isValid}
-          accept={AllowedSourceFilesTypes.join(',')}
+          accept={AllowedSourceFilesTypesList.join(',')}
           aria-label="upload file"
         />
         <IconFile size={18} />

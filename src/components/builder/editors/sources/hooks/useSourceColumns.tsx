@@ -12,11 +12,12 @@ import {
 } from '@tabler/icons-react';
 import { createColumnHelper } from '@tanstack/react-table';
 import classNames from 'classnames';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Control, FieldArrayWithId, FieldErrors } from 'react-hook-form';
 
 import ContextMenu from '@/components/builder/common/ContextMenu';
 import Tooltip from '@/components/builder/common/Tooltip';
+import { LoadingText } from '@/components/common/LoadingText';
 import { useBuilderDispatch } from '@/store/builder/hooks';
 import { UIActions } from '@/store/builder/ui/ui.reducers';
 import { DisplayMenuItemProps } from '@/types/menu';
@@ -47,6 +48,7 @@ interface Props {
   handleRefreshLink: (index: number) => void;
   isAddingModeRef: React.MutableRefObject<boolean>;
   generationStatus: GenerationStatus | null;
+  onPasteList: (links: string[]) => void;
 }
 
 export const useSourceColumns = ({
@@ -70,70 +72,144 @@ export const useSourceColumns = ({
   handleRefreshLink,
   isAddingModeRef,
   generationStatus,
+  onPasteList,
 }: Props) => {
   const columnHelper = createColumnHelper<Source>();
   const dispatch = useBuilderDispatch();
 
-  const getActionButtons = (index: number, original: Source) => {
-    if ((editableIndex ?? -1) >= 0) {
-      return [];
-    }
+  const getActionButtons = useCallback(
+    (index: number, original: Source) => {
+      if ((editableIndex ?? -1) >= 0) {
+        return [];
+      }
 
-    if (original.status === SourceStatus.FAILED) {
-      const elements: DisplayMenuItemProps[] = [];
+      if (original.status === SourceStatus.FAILED) {
+        const elements: DisplayMenuItemProps[] = [];
 
-      elements.push({
-        dataQa: 'reindex',
-        name: 'Reindex',
-        Icon: IconRefresh,
-        className: 'text-sm',
-        iconClassName: '!text-error',
-        onClick: () =>
-          original.type === SourceType.LINK
-            ? handleRefreshLink(index)
-            : dispatch(UIActions.setSourceIdToAddVersion(original.id)),
-      });
+        elements.push({
+          dataQa: 'reindex',
+          name: 'Reindex',
+          Icon: IconRefresh,
+          className: 'text-sm',
+          iconClassName: '!text-error',
+          onClick: () =>
+            original.type === SourceType.LINK
+              ? handleRefreshLink(index)
+              : dispatch(UIActions.setSourceIdToAddVersion(original.id)),
+        });
 
-      elements.push(
-        // {
-        //   dataQa: 'edit',
-        //   name: 'Edit source',
-        //   Icon: IconPencilMinus,
-        //   className: 'text-sm',
-        //   onClick: () => handleEdit(index),
-        // },
-        {
+        elements.push(
+          // {
+          //   dataQa: 'edit',
+          //   name: 'Edit source',
+          //   Icon: IconPencilMinus,
+          //   className: 'text-sm',
+          //   onClick: () => handleEdit(index),
+          // },
+          {
+            dataQa: 'delete',
+            name: 'Delete version',
+            Icon: IconTrashX,
+            className: 'text-sm',
+            onClick: () => handleDelete(index),
+          },
+        );
+
+        return elements;
+      }
+
+      if (generationStatus === GenerationStatus.NOT_STARTED) {
+        const elements: DisplayMenuItemProps[] = [];
+
+        // if (original.type === SourceType.LINK) {
+        //   elements.push({
+        //     dataQa: 'edit',
+        //     name: 'Edit source',
+        //     Icon: IconPencilMinus,
+        //     className: 'text-sm',
+        //     onClick: () => handleEdit(index),
+        //   });
+        // }
+
+        elements.push({
           dataQa: 'delete',
-          name: 'Delete version',
+          name: 'Delete source',
           Icon: IconTrashX,
           className: 'text-sm',
           onClick: () => handleDelete(index),
-        },
-      );
+        });
 
-      return elements;
-    }
+        elements.push({
+          dataQa: 'rename',
+          name: 'Rename',
+          Icon: IconForms,
+          className: 'text-sm',
+          onClick: () => handleEdit(index, 'rename'),
+        });
 
-    if (generationStatus === GenerationStatus.NOT_STARTED) {
+        if (original.id && original.version) {
+          elements.push({
+            dataQa: 'download',
+            name: 'Download',
+            Icon: IconDownload,
+            className: 'text-sm',
+            onClick: () => handleDownload(index),
+          });
+        }
+
+        return elements;
+      }
+
+      if (original.status === SourceStatus.REMOVED) {
+        return [];
+      }
+
       const elements: DisplayMenuItemProps[] = [];
 
-      // if (original.type === SourceType.LINK) {
-      //   elements.push({
-      //     dataQa: 'edit',
-      //     name: 'Edit source',
-      //     Icon: IconPencilMinus,
-      //     className: 'text-sm',
-      //     onClick: () => handleEdit(index),
-      //   });
-      // }
+      if (original.type === SourceType.LINK) {
+        elements.push(
+          {
+            dataQa: 'reindex',
+            name: 'Reindex',
+            Icon: IconRefresh,
+            className: 'text-sm',
+            onClick: () => handleRefreshLink(index),
+          },
+          {
+            dataQa: 'delete',
+            name: 'Delete source',
+            Icon: IconTrashX,
+            className: 'text-sm',
+            onClick: () => handleDelete(index),
+          },
+          {
+            dataQa: 'add-version',
+            name: 'Add new version',
+            Icon: IconPlus,
+            className: 'text-sm',
+            onClick: () => dispatch(UIActions.setSourceIdToAddVersion(original.id)),
+          },
+        );
+      }
 
-      elements.push({
-        dataQa: 'delete',
-        name: 'Delete source',
-        Icon: IconTrashX,
-        className: 'text-sm',
-        onClick: () => handleDelete(index),
-      });
+      if (original.type === SourceType.FILE) {
+        elements.push(
+          {
+            dataQa: 'add-version',
+            name: 'Add new version',
+            Icon: IconPlus,
+            className: 'text-sm',
+            onClick: () => dispatch(UIActions.setSourceIdToAddVersion(original.id)),
+          },
+          {
+            dataQa: 'delete',
+            name: 'Delete source',
+            Icon: IconTrashX,
+            className: 'text-sm',
+            onClick: () => handleDelete(index),
+          },
+        );
+      }
 
       elements.push({
         dataQa: 'rename',
@@ -142,6 +218,16 @@ export const useSourceColumns = ({
         className: 'text-sm',
         onClick: () => handleEdit(index, 'rename'),
       });
+
+      if (!original.in_graph) {
+        elements.push({
+          dataQa: 'add-to-graph',
+          name: 'Add to graph',
+          Icon: IconSitemap,
+          className: 'text-sm',
+          onClick: () => dispatch(UIActions.setSourceIdToApplyToGraph(original.id)),
+        });
+      }
 
       if (original.id && original.version) {
         elements.push({
@@ -153,98 +239,18 @@ export const useSourceColumns = ({
         });
       }
 
+      elements.push({
+        dataQa: 'versions-history',
+        name: 'Versions history',
+        Icon: IconHistory,
+        className: 'text-sm',
+        onClick: () => dispatch(UIActions.setSourceIdInVersionsModal(original.id)),
+      });
+
       return elements;
-    }
-
-    if (original.status === SourceStatus.REMOVED) {
-      return [];
-    }
-
-    const elements: DisplayMenuItemProps[] = [];
-
-    if (original.type === SourceType.LINK) {
-      elements.push(
-        {
-          dataQa: 'reindex',
-          name: 'Reindex',
-          Icon: IconRefresh,
-          className: 'text-sm',
-          onClick: () => handleRefreshLink(index),
-        },
-        {
-          dataQa: 'delete',
-          name: 'Delete source',
-          Icon: IconTrashX,
-          className: 'text-sm',
-          onClick: () => handleDelete(index),
-        },
-        {
-          dataQa: 'add-version',
-          name: 'Add new version',
-          Icon: IconPlus,
-          className: 'text-sm',
-          onClick: () => dispatch(UIActions.setSourceIdToAddVersion(original.id)),
-        },
-      );
-    }
-
-    if (original.type === SourceType.FILE) {
-      elements.push(
-        {
-          dataQa: 'add-version',
-          name: 'Add new version',
-          Icon: IconPlus,
-          className: 'text-sm',
-          onClick: () => dispatch(UIActions.setSourceIdToAddVersion(original.id)),
-        },
-        {
-          dataQa: 'delete',
-          name: 'Delete source',
-          Icon: IconTrashX,
-          className: 'text-sm',
-          onClick: () => handleDelete(index),
-        },
-      );
-    }
-
-    elements.push({
-      dataQa: 'rename',
-      name: 'Rename',
-      Icon: IconForms,
-      className: 'text-sm',
-      onClick: () => handleEdit(index, 'rename'),
-    });
-
-    if (!original.in_graph) {
-      elements.push({
-        dataQa: 'add-to-graph',
-        name: 'Add to graph',
-        Icon: IconSitemap,
-        className: 'text-sm',
-        onClick: () => dispatch(UIActions.setSourceIdToApplyToGraph(original.id)),
-      });
-    }
-
-    if (original.id && original.version) {
-      elements.push({
-        dataQa: 'download',
-        name: 'Download',
-        Icon: IconDownload,
-        className: 'text-sm',
-        onClick: () => handleDownload(index),
-      });
-    }
-
-    elements.push({
-      dataQa: 'versions-history',
-      name: 'Versions history',
-      Icon: IconHistory,
-      className: 'text-sm',
-      onClick: () => dispatch(UIActions.setSourceIdInVersionsModal(original.id)),
-    });
-
-    return elements;
-  };
+    },
+    [dispatch, editableIndex, generationStatus, handleDelete, handleDownload, handleEdit, handleRefreshLink],
+  );
 
   const columns = useMemo(
     () => [
@@ -275,6 +281,7 @@ export const useSourceColumns = ({
               isAddingModeRef={isAddingModeRef}
               inProgressUrls={inProgressUrls}
               generationStatus={generationStatus}
+              onPasteList={onPasteList}
             />
           );
         },
@@ -314,9 +321,15 @@ export const useSourceColumns = ({
           </div>
         ),
         cell: info => {
-          return info.row.original.status !== SourceStatus.REMOVED ? (
-            <div className="px-4 py-2">{info.getValue() || '-'}</div>
-          ) : null;
+          if (info.row.original.status === SourceStatus.REMOVED) return null;
+          if (info.row.original.status === SourceStatus.INPROGRESS) {
+            return (
+              <div className="px-4 py-2">
+                <LoadingText text="Indexing" />
+              </div>
+            );
+          }
+          return <div className="px-4 py-2">{info.getValue() || '-'}</div>;
         },
       }),
       columnHelper.accessor('created', {
@@ -328,8 +341,18 @@ export const useSourceColumns = ({
             {header.column.getIsSorted() === 'desc' && <IconSortDescending size={14} />}
           </div>
         ),
-        cell: info =>
-          info.row.original.status !== SourceStatus.REMOVED ? <LastUpdateCell date={info.getValue()} /> : null,
+        cell: info => {
+          if (info.row.original.status === SourceStatus.REMOVED) return null;
+          if (info.row.original.status === SourceStatus.INPROGRESS && !info.getValue()) {
+            return (
+              <div className="px-4 py-2">
+                <LoadingText text="Loading" />
+              </div>
+            );
+          }
+          if (!info.getValue()) return '-';
+          return <LastUpdateCell date={info.getValue()} />;
+        },
       }),
       columnHelper.display({
         id: 'actions',
@@ -386,21 +409,24 @@ export const useSourceColumns = ({
       }),
     ],
     [
+      columnHelper,
       fields,
       editableIndex,
+      editMode,
+      hoveredRow,
+      selectedRows,
       isValid,
       errors,
-      inProgressUrls,
-      control,
-      hoveredRow,
-      handleEdit,
-      handleDelete,
       handleKeyDown,
-      columnHelper,
       handleConfirmEdit,
       handleConfirmAdd,
+      handleRowSelection,
       handleCancel,
+      control,
       isAddingModeRef,
+      inProgressUrls,
+      generationStatus,
+      getActionButtons,
     ],
   );
 

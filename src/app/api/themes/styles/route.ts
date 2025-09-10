@@ -8,27 +8,11 @@ import { HTTPMethod } from '@/types/http';
 import { ThemesConfig } from '@/types/themes';
 import { isAbsoluteUrl } from '@/utils/app/file';
 import { getThemeIconUrl } from '@/utils/app/themes';
+import { generateColorsCssVariables, generateFontCssVariables, wrapCssContents } from '@/utils/common/themeUtils';
 import { logger } from '@/utils/server/logger';
 
 let cachedTheme = '';
 let cachedThemeExpiration: number | undefined;
-
-function generateColorsCssVariables(variables: Record<string, string> | undefined) {
-  if (!variables) {
-    return '';
-  }
-
-  let cssContent = '';
-  Object.entries(variables).forEach(([variable, value]) => {
-    let compiledValue = value;
-
-    if (!value.startsWith('#')) {
-      compiledValue = '';
-    }
-    cssContent += `--${cssEscape(variable)}: ${compiledValue};\n`;
-  });
-  return cssContent;
-}
 
 function generateUrlsCssVariables(variables: Record<string, string> | undefined) {
   if (!variables) {
@@ -47,27 +31,6 @@ function generateUrlsCssVariables(variables: Record<string, string> | undefined)
     cssContent += `--${cssEscape(variable)}: url('${compiledValue}');\n`;
   });
   return cssContent;
-}
-
-function generateFontCssVariables(variables: Record<string, string | undefined> | undefined) {
-  if (!variables) {
-    return `${inter.variable}:${inter.style.fontFamily};\n`;
-  }
-
-  let cssContent = '';
-  Object.entries(variables).forEach(([variable, value]) => {
-    let compiledValue = value;
-    if (!value || !value.length) {
-      compiledValue = inter.style.fontFamily;
-    }
-
-    cssContent += `--${cssEscape(variable)}: ${compiledValue};\n`;
-  });
-  return cssContent;
-}
-
-function wrapCssContents(wrapper: string, contents: string[]): string {
-  return `${wrapper} {\n ${contents.join('')}\n }\n`;
 }
 
 async function handler() {
@@ -110,7 +73,7 @@ async function handler() {
           generateColorsCssVariables(theme.colors),
           generateUrlsCssVariables({ 'app-logo': theme['app-logo'] }),
           generateFontCssVariables({
-            'theme-font': theme['font-family'],
+            'theme-font': theme['font-family'] ?? inter.style.fontFamily,
             'codeblock-font': theme['font-codeblock'] ?? inconsolata.style.fontFamily,
           }),
         ]),

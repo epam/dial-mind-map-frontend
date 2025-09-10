@@ -9,7 +9,7 @@ jest.mock('@/store/builder/hooks', () => ({
   useBuilderSelector: jest.fn(),
 }));
 
-jest.mock('@/components/builder/common/Loader', () => {
+jest.mock('@/components/common/Loader', () => {
   const MockLoader = () => <div>MockLoader</div>;
   MockLoader.displayName = 'MockLoader';
   return MockLoader;

@@ -3,19 +3,15 @@
 exports[`Button component matches snapshot 1`] = `
 <DocumentFragment>
   <button
-    class="button button-primary custom-class border-0"
+    class="inline-flex items-center gap-2 button button-primary custom-class border-0"
     data-testid="button"
     type="button"
   >
     <span>
       Snapshot
     </span>
-    <span
-      class="ml-2"
-    >
-      <span>
-        *
-      </span>
+    <span>
+      *
     </span>
   </button>
 </DocumentFragment>

@@ -1,3 +1,5 @@
+import React from 'react';
+
 import { ModelCursorSign } from '@/constants/app';
 
 export const BlinkingCursor = ({ isShowing }: { isShowing: boolean }) => {

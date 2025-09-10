@@ -27,23 +27,6 @@ describe('Button component', () => {
     expect(handleClick).not.toHaveBeenCalled();
   });
 
-  test('renders with icon and default position (before)', () => {
-    const Icon = () => <svg data-testid="icon" />;
-    render(<Button icon={<Icon />} label="With Icon" dataTestId="button" />);
-    const icon = screen.getByTestId('icon');
-    // wrapper span should have margin-right when before
-    expect(icon.parentElement).toHaveClass('mr-2');
-    expect(screen.getByText('With Icon')).toBeInTheDocument();
-  });
-
-  test('positions icon after text when iconPosition="after"', () => {
-    const Icon = () => <svg data-testid="icon" />;
-    render(<Button icon={<Icon />} label="After Icon" iconPosition="after" dataTestId="button" />);
-    const icon = screen.getByTestId('icon');
-    // wrapper span should have margin-left when after
-    expect(icon.parentElement).toHaveClass('ml-2');
-  });
-
   test('applies variant classes correctly', () => {
     const { rerender } = render(<Button label="Primary" variant="primary" dataTestId="button" />);
     expect(screen.getByTestId('button')).toHaveClass('button-primary');

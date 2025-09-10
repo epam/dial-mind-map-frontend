@@ -26,6 +26,8 @@ export const selectMindmapFolder = createSelector(
 
 export const selectAppName = createSelector([selectApplication], app => app?.name);
 
+export const selectAppReference = createSelector([selectApplication], app => app?.reference);
+
 export const selectIsApplicationLoading = createSelector([rootSelector], state => state.isLoading);
 
 export const selectEncodedApplicationPath = createSelector([selectApplication], application => {

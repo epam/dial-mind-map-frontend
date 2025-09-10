@@ -53,6 +53,7 @@ function useTooltip({
 }: TooltipContainerOptions = {}) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(initialOpen);
   const arrowRef = useRef<SVGSVGElement>(null);
+  const availableHeightRef = useRef<number | null>(null);
 
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = setControlledOpen ?? setUncontrolledOpen;
@@ -80,6 +81,9 @@ function useTooltip({
         padding: 8,
         apply({ availableHeight, elements }) {
           elements.floating.style.maxHeight = `${availableHeight}px`;
+          if (availableHeight != null) {
+            availableHeightRef.current = availableHeight;
+          }
         },
       }),
     ],
@@ -114,6 +118,7 @@ function useTooltip({
       arrowRef,
       ...interactions,
       ...data,
+      availableHeight: availableHeightRef.current,
     }),
     [open, setOpen, interactions, data],
   );

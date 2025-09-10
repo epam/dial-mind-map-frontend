@@ -226,7 +226,7 @@ const NodeEditor = () => {
       </div>
       <form className="flex h-full flex-col gap-4 overflow-y-auto pb-5">
         <Space size="middle" className="px-5">
-          <label htmlFor="node-label" className="mb-1 flex min-w-20 items-center text-sm">
+          <label htmlFor="node-label" className="mb-1 flex min-w-20 items-center border-t border-transparent text-sm">
             Label
           </label>
           <div className="flex grow flex-col gap-px">
@@ -259,7 +259,7 @@ const NodeEditor = () => {
                     <input
                       className={classNames(
                         'input-form w-full pr-8 text-sm',
-                        'border ',
+                        'border',
                         'hover:border-primary focus:border-accent-primary',
                         questionsErrors[index] && 'border-error',
                         !questionsErrors[index] && 'border-transparent',
@@ -270,15 +270,18 @@ const NodeEditor = () => {
                     />
                   )}
                 />
-                <IconTrashX
-                  size={16}
-                  className={classNames(
-                    'absolute right-2 top-3 cursor-pointer transition-opacity',
-                    'opacity-0 group-hover:opacity-100',
-                    'hover:text-accent-primary',
-                  )}
-                  onClick={() => handleDeleteQuestion(index)}
-                />
+                {questionFields.length > 1 && (
+                  <IconTrashX
+                    size={16}
+                    className={classNames(
+                      'absolute right-2 top-3 cursor-pointer transition-opacity',
+                      'opacity-0 group-hover:opacity-100',
+                      'hover:text-accent-primary',
+                    )}
+                    onClick={() => handleDeleteQuestion(index)}
+                  />
+                )}
+
                 {questionsErrors[index] && <span className="text-xxs text-error">{questionsErrors[index]}</span>}
               </div>
             ))}

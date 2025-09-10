@@ -20,7 +20,7 @@ interface ButtonProps {
    * - "secondary" adds the "button-secondary" classes,
    * - "chat" adds the "button-chat" classes.
    */
-  variant?: 'primary' | 'secondary' | 'chat';
+  variant?: 'primary' | 'secondary' | 'chat' | 'icon';
   /** Disable border even when variant is set */
   noBorder?: boolean;
   /** Position of the icon relative to the label */
@@ -41,17 +41,19 @@ const Button: React.FC<ButtonProps> = ({
   iconPosition = 'before',
   dataTestId,
 }) => {
-  const baseClasses = classNames('button', { [`button-${variant}`]: variant }, className);
+  const baseClasses = classNames(
+    'inline-flex items-center gap-2 button',
+    { [`button-${variant}`]: variant },
+    className,
+  );
 
   const btnClass = twMerge(baseClasses, noBorder && 'border-0');
 
   return (
     <button type={htmlType} disabled={disabled} onClick={onClick} className={btnClass} data-testid={dataTestId}>
-      {icon && iconPosition === 'before' && <span className={classNames({ 'mr-2': !!label })}>{icon}</span>}
-
+      {icon && iconPosition === 'before' && icon}
       {label && <span>{label}</span>}
-
-      {icon && iconPosition === 'after' && <span className={classNames({ 'ml-2': !!label })}>{icon}</span>}
+      {icon && iconPosition === 'after' && icon}
     </button>
   );
 };

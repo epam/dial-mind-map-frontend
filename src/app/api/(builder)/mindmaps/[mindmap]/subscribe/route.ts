@@ -58,7 +58,6 @@ const subscribeHandler = async (
           let position;
           while ((position = buffer.indexOf('\n\n')) !== -1) {
             const rawMessage = buffer.slice(0, position);
-            console.log('SUBSCRIBE rawMessage:', rawMessage);
             buffer = buffer.slice(position + 2);
 
             await writer.write(encoder.encode(`${rawMessage}\n\n`));

@@ -51,7 +51,7 @@ interface Props {
   onEdgeDelete: (edge: Edge) => void;
   onEdgeCreate: (edge: Edge) => void;
   onEdgeUpdate: (edge: Edge) => void;
-  onNodesPositionsUpdate: (positionedNodes: PositionedElement<Node>[]) => void;
+  onNodesPositionsUpdate: (positionedNodes: PositionedElement<Node>[], historySkip?: boolean) => void;
   onGeneratedElementsLayout: (nodes: PositionedElement<Node>[], edges: Element<Edge>[]) => void;
   onNodeCreate: (node: PositionedElement<Node>) => void;
   onNodeDelete: (node: Node, edgesIds: string[]) => void;
@@ -131,6 +131,7 @@ const GraphComponent = ({
         elements: graphElements,
         style: cytoscapeStyles,
         layout: layout,
+        wheelSensitivity: 0.4,
       });
       cyRef.current = cy;
 
@@ -233,7 +234,7 @@ const GraphComponent = ({
               queue: false,
             });
           } else {
-            onNodesPositionsUpdate(nodes);
+            onNodesPositionsUpdate(nodes, updateMode === 'refresh' ? true : undefined);
           }
 
           arePositionsSavedRef.current = true;
@@ -245,7 +246,7 @@ const GraphComponent = ({
         cy.destroy();
       };
     }
-  }, []);
+  }, [updateMode]);
 
   useEffect(() => {
     if (!cyRef.current) return;
@@ -675,7 +676,7 @@ const GraphComponent = ({
           </Tooltip>
         )}
 
-        <Tooltip tooltip="Fit to Center" contentClassName="text-sm px-2 text-primary">
+        <Tooltip tooltip="Fit graph" contentClassName="text-sm px-2 text-primary">
           <button
             onClick={() => {
               if (cyRef.current) {

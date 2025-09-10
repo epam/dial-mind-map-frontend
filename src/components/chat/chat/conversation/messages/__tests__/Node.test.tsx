@@ -1,12 +1,12 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
-import { useChatDispatch } from '@/store/chat/hooks';
-import { MindmapActions } from '@/store/chat/mindmap/mindmap.reducers';
+import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
 
 import { Node } from '../Node';
 
 jest.mock('@/store/chat/hooks', () => ({
   useChatDispatch: jest.fn(),
+  useChatSelector: jest.fn(),
 }));
 
 jest.mock('@tabler/icons-react', () => ({
@@ -15,68 +15,102 @@ jest.mock('@tabler/icons-react', () => ({
 
 describe('Node', () => {
   const mockDispatch = jest.fn();
-  const mockCloseTooltip = jest.fn();
+  const mockSelect = jest.fn();
 
   beforeEach(() => {
     (useChatDispatch as jest.Mock).mockReturnValue(mockDispatch);
+    (useChatSelector as jest.Mock).mockReturnValue(mockSelect);
   });
 
   test('renders node with label', () => {
-    render(<Node id="1" label="Test Node" color="#ff0000" isVisited={false} isPrevious={false} size="default" />);
-    expect(screen.getByText('Test Node')).toBeInTheDocument();
-  });
-
-  test('calls dispatch on click', () => {
-    render(<Node id="1" label="Test Node" color="#ff0000" isVisited={false} isPrevious={false} size="default" />);
-    fireEvent.click(screen.getByText('Test Node'));
-    expect(mockDispatch).toHaveBeenCalledWith(
-      MindmapActions.handleNavigation({ clickedNodeId: '1', shouldFetchGraph: true }),
-    );
-  });
-
-  test('calls closeTooltip if provided', () => {
     render(
       <Node
         id="1"
         label="Test Node"
         color="#ff0000"
+        textColor="#ff00ff"
         isVisited={false}
         isPrevious={false}
         size="default"
-        closeTooltip={mockCloseTooltip}
       />,
     );
-    fireEvent.click(screen.getByText('Test Node'));
-    expect(mockCloseTooltip).toHaveBeenCalled();
+    expect(screen.getByText('Test Node')).toBeInTheDocument();
   });
 
   test('applies correct styles for visited node', () => {
-    render(<Node id="1" label="Visited Node" color="#ff0000" isVisited={true} isPrevious={false} size="default" />);
-    expect(screen.getByText('Visited Node')).toHaveClass('text-secondary');
+    render(
+      <Node
+        id="1"
+        label="Visited Node"
+        color="#ff0000"
+        textColor="#ff00ff"
+        isVisited={true}
+        isPrevious={false}
+        size="default"
+      />,
+    );
+    expect(screen.getByText('Visited Node')).toHaveClass('opacity-60');
   });
 
   test('renders previous node with icon', () => {
-    render(<Node id="1" label="Previous Node" color="#ff0000" isVisited={false} isPrevious={true} size="default" />);
+    render(
+      <Node
+        id="1"
+        label="Previous Node"
+        color="#ff0000"
+        textColor="#ff00ff"
+        isVisited={false}
+        isPrevious={true}
+        size="default"
+      />,
+    );
     expect(screen.getByText('Previous Node')).toBeInTheDocument();
     expect(screen.getByTestId('arrow-icon')).toBeInTheDocument();
   });
 
   test('applies correct styles based on size prop', () => {
     const { rerender } = render(
-      <Node id="1" label="Small Node" color="#ff0000" isVisited={false} isPrevious={false} size="small" />,
+      <Node
+        id="1"
+        label="Small Node"
+        color="#ff0000"
+        textColor="#ff00ff"
+        isVisited={false}
+        isPrevious={false}
+        size="small"
+      />,
     );
-    expect(screen.getByText('Small Node')).toHaveClass('py-1 px-2 text-xs');
+    expect(screen.getByTestId('chat-node')).toHaveClass('py-1 px-2 text-xs');
 
-    rerender(<Node id="1" label="Default Node" color="#ff0000" isVisited={false} isPrevious={false} size="default" />);
-    expect(screen.getByText('Default Node')).toHaveClass(
-      'rounded-lg xl:rounded-xl flex items-center text-pretty text-controls-permanent hover:outline hover:outline-[2.5px] hover:outline-offset-[-1px] py-[6px] px-2 text-xs xl:text-sm xl:px-3',
+    rerender(
+      <Node
+        id="1"
+        label="Default Node"
+        color="#ff0000"
+        textColor="#ff00ff"
+        isVisited={false}
+        isPrevious={false}
+        size="default"
+      />,
+    );
+    expect(screen.getByTestId('chat-node')).toHaveClass(
+      'py-[6px] px-2 text-xs xl:text-sm xl:px-3 hover:outline hover:outline-[2.5px] hover:outline-offset-[-1px] rounded-lg xl:rounded-xl chat-conversation__message-node',
     );
   });
 
   test('renders node with default size when size prop is not provided', () => {
-    render(<Node id="1" label="Default Size Node" color="#ff0000" isVisited={false} isPrevious={false} />);
-    expect(screen.getByText('Default Size Node')).toHaveClass(
-      'rounded-lg xl:rounded-xl flex items-center text-pretty text-controls-permanent hover:outline hover:outline-[2.5px] hover:outline-offset-[-1px] py-[6px] px-2 text-xs xl:text-sm xl:px-3',
+    render(
+      <Node
+        id="1"
+        label="Default Size Node"
+        color="#ff0000"
+        textColor="#ff00ff"
+        isVisited={false}
+        isPrevious={false}
+      />,
+    );
+    expect(screen.getByTestId('chat-node')).toHaveClass(
+      'py-[6px] px-2 text-xs xl:text-sm xl:px-3 hover:outline hover:outline-[2.5px] hover:outline-offset-[-1px] rounded-lg xl:rounded-xl chat-conversation__message-node',
     );
   });
 });

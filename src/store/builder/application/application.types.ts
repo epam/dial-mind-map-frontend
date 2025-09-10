@@ -4,4 +4,5 @@ export interface ApplicationState {
   application?: Application;
   isLoading: boolean;
   error: string | null;
+  isApplicationReady: boolean;
 }

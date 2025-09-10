@@ -5,8 +5,8 @@ import { Fragment, useMemo } from 'react';
 
 import { ContextMenuProps, MenuItemRendererProps } from '@/types/menu';
 
+import { Spinner } from '../../common/Spinner';
 import { Menu, MenuItem } from './DropdownMenu';
-import { Spinner } from './Spinner';
 import Tooltip from './Tooltip';
 
 function ContextMenuItemRenderer({

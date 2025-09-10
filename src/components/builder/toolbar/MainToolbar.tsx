@@ -1,9 +1,17 @@
-import { IconArrowsShuffle, IconColumns, IconDotsVertical, IconSitemap } from '@tabler/icons-react';
+import {
+  IconArrowsShuffle,
+  IconCodeDots,
+  IconColumns,
+  IconDotsVertical,
+  IconFileArrowLeft,
+  IconFileArrowRight,
+  IconListDetails,
+  IconRefresh,
+  IconSitemap,
+} from '@tabler/icons-react';
 import classNames from 'classnames';
 import groupBy from 'lodash-es/groupBy';
 import sum from 'lodash-es/sum';
-import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 
@@ -12,54 +20,51 @@ import GenerateEdgesIcon from '@/icons/generate-edges.svg';
 import GenerateNodeIcon from '@/icons/generate-node.svg';
 import HideGeneratedEdgesIcon from '@/icons/hide-generated-edges.svg';
 import RegenerateIcon from '@/icons/regenerate.svg';
-import { ApplicationSelectors } from '@/store/builder/application/application.reducer';
 import { BuilderActions, BuilderSelectors } from '@/store/builder/builder/builder.reducers';
 import { CompletionSelectors } from '@/store/builder/completion/completion.selectors';
 import { GraphSelectors } from '@/store/builder/graph/graph.reducers';
 import { useBuilderSelector } from '@/store/builder/hooks';
 import { PreferencesSelectors } from '@/store/builder/preferences/preferences.reducers';
+import { SourcesSelectors } from '@/store/builder/sources/sources.selectors';
 import { UIActions, UISelectors } from '@/store/builder/ui/ui.reducers';
 import { DisplayMenuItemProps } from '@/types/menu';
 import { GenerationStatus, SourceStatus } from '@/types/sources';
 
 import ContextMenu from '../common/ContextMenu';
 import Tooltip from '../common/Tooltip';
+import IconButton from './components/IconButton';
+import { LinkPathname, NavigationTabs } from './components/NavigationTabs';
+import { ALWAYS_VISIBLE_PARTS_WIDTH, BUTTON_SIZE, GAP_INSIDE_GROUP, TOTAL_GROUP_MARGIN } from './data/toolbarConstants';
+import { useExportAppearance } from './hooks/useExportApperance';
+import { useExportMindmap } from './hooks/useExportMindmap';
+import { useImportAppearance } from './hooks/useImportApperance';
+import { useImportMindmap } from './hooks/useImportMindmap';
+import { useToolbarRouting } from './hooks/useToolbarRouting';
 import { GenEdgesConfirmModal } from './modals/GenEdgesConfirmModal';
 import { GenEdgesDelConfirmModal } from './modals/GenEdgesDelConfirmModal';
 import { GenEdgesDelLoaderModal } from './modals/GenEdgesDelLoaderModal';
 import { GenEdgesLoaderModal } from './modals/GenEdgesLoaderModal';
 import { GenNodeModal } from './modals/GenNodeModal';
 import { GraphRegenerateConfirmModal } from './modals/GraphRegenerateConfirmModal';
+import { ImportMindMapConfirmModal } from './modals/ImportMindmapConfirmModal';
 import { RelayoutConfirmModal } from './modals/RelayoutConfirmModal';
+import { ResetThemeConfirmModal } from './modals/ResetThemeConfirmModal';
 import { Search } from './Search/Search';
 import { UndoRedoSection } from './UndoRedoSection';
 
-// Width of a toolbar button
-const BUTTON_SIZE = 34;
-// Width of the margin around group of buttons
-const GROUP_MARGIN = 12;
-const TOTAL_GROUP_MARGIN = GROUP_MARGIN * 2;
-// Width of a gap between groups elements
-const GAP_INSIDE_GROUP = 8;
-// Width of tabs and views switchers. This is the width of the stable toolbar elements on the left side of the flexible part
-const LEFT_TOOLBAR_BLOCK_WIDTH = 194 + 108;
-// Width of search and undo/redo buttons. This is the width of the stable toolbar elements on the right side of the flexible part
-const RIGHT_TOOLBAR_BLOCK_WIDTH = 150 + 100;
-// Width of hidden menu button
-const MENU_BUTTON_WIDTH = BUTTON_SIZE + TOTAL_GROUP_MARGIN;
-const ALWAYS_VISIBLE_PARTS_WIDTH = LEFT_TOOLBAR_BLOCK_WIDTH + RIGHT_TOOLBAR_BLOCK_WIDTH + MENU_BUTTON_WIDTH;
-
 export const MainToolbar = () => {
   const dispatch = useDispatch();
-  const pathname = usePathname();
+  const { pathname } = useToolbarRouting();
+
   const isGraphReady = useBuilderSelector(GraphSelectors.selectIsReady);
   const [isOpenRegenerateModal, setIsOpenRegenerateModal] = useState(false);
 
   const generationStatus = useBuilderSelector(BuilderSelectors.selectGenerationStatus);
 
   const selectedView = useBuilderSelector(UISelectors.selectCurrentView);
+  const selectedCustomizeView = useBuilderSelector(UISelectors.selectCurrentCustomizeView);
+
   const isGenEdgesConfirmModalOpen = useBuilderSelector(UISelectors.selectIsGenEdgesConfirmModalOpen);
-  const applicationName = useBuilderSelector(ApplicationSelectors.selectApplicationName);
   const isGenEdgesDelConfirmModalOpen = useBuilderSelector(UISelectors.selectIsGenEdgesDelConfirmModalOpen);
   const areGeneretedEdgesShowen = useBuilderSelector(UISelectors.selectAreGeneretedEdgesShowen);
   const isGenEdgesLoaderModalOpen = useBuilderSelector(UISelectors.selectIsGenEdgesLoaderModalOpen);
@@ -68,14 +73,23 @@ export const MainToolbar = () => {
   const isGenEdgesConfirmModalSkipped = useBuilderSelector(PreferencesSelectors.selectIsGenEdgesConfirmModalSkipped);
   const isGenNodeInputOpen = useBuilderSelector(UISelectors.selectIsGenNodeInputOpen);
   const isRelayoutConfirmModalOpen = useBuilderSelector(UISelectors.selectIsRelayoutConfirmModalOpen);
-  const isMessageStreaming = useBuilderSelector(CompletionSelectors.selectIsMessageStreaming);
-  const searchParams = useSearchParams();
-  const sources = useBuilderSelector(BuilderSelectors.selectSources);
+  const isResetThemeConfirmModalOpen = useBuilderSelector(UISelectors.selectIsResetThemeConfirmModalOpen);
 
-  const getAuthProviderQuery = useCallback(() => {
-    const authProvider = searchParams.get('authProvider');
-    return authProvider ? `&authProvider=${authProvider}` : '';
-  }, [searchParams]);
+  const { isExportInProgress, onExportClick } = useExportAppearance();
+  const { fileInputRef, isImportInProgress, onFileChange, onImportClick } = useImportAppearance();
+
+  const { isExportMindmapInProgress, onExportMindmapClick } = useExportMindmap();
+  const {
+    isImportMindmapInProgress,
+    onImportMindmapClick,
+    fileMindmapInputRef,
+    onFileMindmapChange,
+    isImportMindmapConfirmModalOpen,
+    setIsImportMindmapConfirmModalOpen,
+  } = useImportMindmap();
+
+  const isMessageStreaming = useBuilderSelector(CompletionSelectors.selectIsMessageStreaming);
+  const sources = useBuilderSelector(SourcesSelectors.selectSources);
 
   const buttonClasses =
     'h-[34px] w-[34px] flex justify-center items-center rounded hover:bg-accent-primary-alpha hover:text-accent-primary disabled:cursor-default disabled:text-controls-disable disabled:bg-layer-3';
@@ -201,19 +215,78 @@ export const MainToolbar = () => {
     return groupsToDisplay.map(groupName => (
       <div key={groupName} className="border-l border-l-tertiary">
         <div className="mx-3 my-[6px] flex gap-2">
-          {elementsGroups[groupName].map(({ dataQa, disabled, onClick, Icon, name, className }) => (
-            <button key={dataQa} disabled={disabled} className={`${buttonClasses} ${className}`} onClick={onClick}>
-              {Icon && (
-                <Tooltip tooltip={name} contentClassName="text-sm px-2 text-primary">
-                  <Icon size={24} height={24} width={24} stroke={1.5} />
-                </Tooltip>
-              )}
-            </button>
-          ))}
+          {elementsGroups[groupName].map(
+            ({ dataQa, disabled, onClick, Icon, name, className }) =>
+              Icon && (
+                <IconButton
+                  key={dataQa}
+                  dataQa={dataQa}
+                  Icon={Icon}
+                  tooltip={name}
+                  disabled={disabled}
+                  onClick={onClick}
+                  className={className}
+                />
+              ),
+          )}
         </div>
       </div>
     ));
-  }, [elementsGroups, elementsGroupsNames, visibleElementsCount, buttonClasses]);
+  }, [elementsGroups, elementsGroupsNames, visibleElementsCount]);
+
+  const customizeButtons: DisplayMenuItemProps[] = useMemo(
+    () => [
+      {
+        dataQa: 'reset-theme',
+        name: 'Reset theme',
+        Icon: IconRefresh,
+        disabled: false,
+        onClick: () => dispatch(UIActions.setIsResetThemeConfirmModalOpen(true)),
+      },
+      {
+        dataQa: 'export-theme',
+        name: 'Export theme (.zip)',
+        Icon: IconFileArrowRight,
+        disabled: isExportInProgress,
+        onClick: onExportClick,
+      },
+      {
+        dataQa: 'import-theme',
+        name: 'Import theme (.zip)',
+        Icon: IconFileArrowLeft,
+        disabled: isImportInProgress,
+        onClick: onImportClick,
+      },
+    ],
+    [dispatch, isExportInProgress, isImportInProgress, onExportClick, onImportClick],
+  );
+
+  const sourcesButtons: DisplayMenuItemProps[] = useMemo(
+    () => [
+      {
+        dataQa: 'export-mindmap',
+        name: 'Export mindmap (.zip)',
+        Icon: IconFileArrowRight,
+        disabled: isExportMindmapInProgress || !isFinishedGenerationStatus,
+        onClick: onExportMindmapClick,
+      },
+      {
+        dataQa: 'import-mindmap',
+        name: 'Import mindmap (.zip)',
+        Icon: IconFileArrowLeft,
+        disabled: isImportMindmapInProgress,
+        onClick: () => setIsImportMindmapConfirmModalOpen(true),
+      },
+    ],
+    [
+      isExportMindmapInProgress,
+      isImportMindmapInProgress,
+      onExportMindmapClick,
+      onImportMindmapClick,
+      setIsImportMindmapConfirmModalOpen,
+      isFinishedGenerationStatus,
+    ],
+  );
 
   const renderMenuWithHiddenElements = useCallback(() => {
     const groupsToHide = elementsGroupsNames.slice(visibleElementsCount);
@@ -246,50 +319,9 @@ export const MainToolbar = () => {
     );
   }, [sources]);
 
-  return (
-    <div
-      ref={containerRef}
-      className="m-3 flex h-[46px] w-[calc(100%-24px)] min-w-[612px] rounded bg-layer-3 text-secondary shadow-mindmap"
-    >
-      <div className="relative flex items-center px-2 text-primary">
-        <Link
-          href={`/sources?id=${applicationName}${getAuthProviderQuery()}`}
-          className={classNames([
-            'flex gap-2 px-3 py-[14px] text-sm hover:text-accent-primary relative whitespace-nowrap',
-            pathname === '/sources' && 'text-accent-primary',
-            isMessageStreaming &&
-              'text-controls-disable hover:text-controls-disable hover:cursor-default pointer-events-none',
-          ])}
-          tabIndex={isMessageStreaming ? -1 : undefined}
-        >
-          Sources list
-          {pathname === '/sources' && (
-            <span className="absolute bottom-px left-0 w-full border-b border-accent-primary"></span>
-          )}
-        </Link>
-        <Link
-          href={`/content?id=${applicationName}${getAuthProviderQuery()}`}
-          className={classNames([
-            'flex gap-2 px-3 py-[14px] text-sm hover:text-accent-primary relative whitespace-nowrap',
-            pathname === '/content' && 'text-accent-primary',
-            generationStatus !== GenerationStatus.FINISHED &&
-              'text-controls-disable hover:text-controls-disable hover:cursor-default pointer-events-none',
-            isMessageStreaming && 'pointer-events-none',
-          ])}
-          tabIndex={generationStatus !== GenerationStatus.FINISHED ? -1 : undefined}
-          onClick={e => {
-            if (generationStatus !== GenerationStatus.FINISHED) {
-              e.preventDefault();
-            }
-          }}
-        >
-          Content
-          {pathname === '/content' && (
-            <span className="absolute bottom-px left-0 w-full border-b border-accent-primary"></span>
-          )}
-        </Link>
-      </div>
-      {isFinishedGenerationStatus && pathname === '/content' ? (
+  const renderActions = () => {
+    if (isFinishedGenerationStatus && pathname === LinkPathname.Content) {
+      return (
         <>
           <div className="border-l border-l-tertiary">
             <div className="flex h-full px-2">
@@ -337,40 +369,148 @@ export const MainToolbar = () => {
             <UndoRedoSection buttonClasses={buttonClasses} />
           </div>
         </>
-      ) : (
+      );
+    }
+
+    if (pathname === LinkPathname.Sources) {
+      return (
         <>
           {isFinishedGenerationStatus && (
-            <div className="border-l border-l-tertiary pl-2">
-              <Tooltip
+            <div className="border-l border-l-tertiary px-2">
+              <IconButton
+                Icon={RegenerateIcon}
                 tooltip={
                   sources.length === 0 || hasFailedSource
                     ? 'Cannot regenerate while sources are processing or have errors. Please resolve all sources first.'
                     : 'Regenerate graph from scratch'
                 }
-                contentClassName="text-sm px-2 text-primary"
-              >
-                <button
-                  className={buttonClasses}
-                  disabled={sources.length === 0 || hasFailedSource}
-                  onClick={() => setIsOpenRegenerateModal(true)}
-                >
-                  <RegenerateIcon role="img" height={24} width={24} />
-                </button>
-              </Tooltip>
+                disabled={sources.length === 0 || hasFailedSource}
+                onClick={() => setIsOpenRegenerateModal(true)}
+                dataQa="regenerate-graph"
+              />
             </div>
           )}
+          <div className="border-l border-l-tertiary ">
+            <div className="mx-3 my-[6px] flex gap-2">
+              {sourcesButtons.map(({ dataQa, name, Icon, disabled, onClick, className }) =>
+                Icon ? (
+                  <IconButton
+                    key={dataQa}
+                    dataQa={dataQa}
+                    tooltip={name}
+                    Icon={Icon}
+                    disabled={disabled}
+                    onClick={onClick}
+                    className={className}
+                  />
+                ) : null,
+              )}
+            </div>
+
+            <input
+              ref={fileMindmapInputRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={onFileMindmapChange}
+            />
+          </div>
+          <div className="grow" />
+
+          <div className="border-l border-l-tertiary">
+            <UndoRedoSection buttonClasses={buttonClasses} />
+          </div>
+        </>
+      );
+    }
+
+    if (pathname === LinkPathname.Customize) {
+      return (
+        <>
+          <div className="border-l border-l-tertiary">
+            <div className="flex h-full px-2">
+              <button
+                disabled={selectedCustomizeView === 'form'}
+                className={classNames([
+                  'relative w-[46px] flex justify-center items-center hover:text-accent-primary',
+                  selectedCustomizeView === 'form' && 'text-accent-primary',
+                ])}
+                onClick={() => dispatch(UIActions.setCurrentCustomizeView('form'))}
+              >
+                <Tooltip tooltip="Form view" contentClassName="text-sm px-2 text-primary">
+                  <IconListDetails height={24} width={24} stroke={1.5} />
+                </Tooltip>
+                {selectedCustomizeView === 'form' && (
+                  <span className="absolute bottom-px left-0 w-full border-b border-accent-primary"></span>
+                )}
+              </button>
+              <button
+                disabled={selectedCustomizeView === 'json'}
+                className={classNames([
+                  'relative w-[46px] flex justify-center items-center hover:text-accent-primary',
+                  selectedCustomizeView === 'json' && 'text-accent-primary',
+                ])}
+                onClick={() => dispatch(UIActions.setCurrentCustomizeView('json'))}
+              >
+                <Tooltip tooltip="JSON editor" contentClassName="text-sm px-2 text-primary">
+                  <IconCodeDots height={24} width={24} stroke={1.5} />
+                </Tooltip>
+                {selectedCustomizeView === 'json' && (
+                  <span className="absolute bottom-px left-0 w-full border-b border-accent-primary"></span>
+                )}
+              </button>
+            </div>
+          </div>
+          <div className="flex h-full border-l border-l-tertiary px-2">
+            {customizeButtons.map(({ dataQa, name, Icon, disabled, onClick, className }) =>
+              Icon ? (
+                <IconButton
+                  key={dataQa}
+                  dataQa={dataQa}
+                  tooltip={name}
+                  Icon={Icon}
+                  disabled={disabled}
+                  onClick={onClick}
+                  className={className}
+                />
+              ) : null,
+            )}
+            <input ref={fileInputRef} type="file" accept=".zip" className="hidden" onChange={onFileChange} />
+          </div>
           <div className="grow" />
           <div className="border-l border-l-tertiary">
             <UndoRedoSection buttonClasses={buttonClasses} />
           </div>
         </>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className={classNames(
+        'z-20 m-3 flex h-[46px] w-[calc(100%-24px)] rounded bg-layer-3 text-secondary shadow-mindmap',
+        pathname === LinkPathname.Content && `min-w-[654px]`,
       )}
+    >
+      <NavigationTabs isMessageStreaming={isMessageStreaming} generationStatus={generationStatus} />
+      {renderActions()}
       {isGenEdgesConfirmModalOpen && <GenEdgesConfirmModal />}
       {isGenEdgesDelConfirmModalOpen && <GenEdgesDelConfirmModal />}
       {isGenEdgesLoaderModalOpen && <GenEdgesLoaderModal />}
       {isGenEdgesDelLoaderModalOpen && <GenEdgesDelLoaderModal />}
       {isRelayoutConfirmModalOpen && <RelayoutConfirmModal />}
+      {isImportMindmapConfirmModalOpen && (
+        <ImportMindMapConfirmModal
+          isOpen={isImportMindmapConfirmModalOpen}
+          handleClose={() => setIsImportMindmapConfirmModalOpen(false)}
+          handleImport={onImportMindmapClick}
+        />
+      )}
       {isGenNodeInputOpen && <GenNodeModal />}
+      {isResetThemeConfirmModalOpen && <ResetThemeConfirmModal />}
       <GraphRegenerateConfirmModal
         isOpen={isOpenRegenerateModal}
         handleClose={() => setIsOpenRegenerateModal(false)}

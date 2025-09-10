@@ -5,10 +5,12 @@ export { ChatAuthSelectors };
 
 export interface ChatAuthState {
   redirectToSignin: boolean;
+  redirectToForbidden: boolean;
 }
 
 const initialState: ChatAuthState = {
   redirectToSignin: false,
+  redirectToForbidden: false,
 };
 
 const chatAuthSlice = createSlice({
@@ -20,6 +22,9 @@ const chatAuthSlice = createSlice({
     },
     resetRedirect(state) {
       state.redirectToSignin = false;
+    },
+    redirectToForbidden(state) {
+      state.redirectToForbidden = true;
     },
   },
 });

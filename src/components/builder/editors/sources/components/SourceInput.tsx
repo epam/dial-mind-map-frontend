@@ -1,12 +1,12 @@
 import { IconCheck, IconPointFilled, IconX } from '@tabler/icons-react';
 import classNames from 'classnames';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Control, Controller, FieldErrors } from 'react-hook-form';
 
-import Loader from '@/components/builder/common/Loader';
 import Tooltip from '@/components/builder/common/Tooltip';
-import { BuilderSelectors } from '@/store/builder/builder/builder.reducers';
+import Loader from '@/components/common/Loader';
 import { useBuilderSelector } from '@/store/builder/hooks';
+import { SourcesSelectors } from '@/store/builder/sources/sources.reducers';
 import { GenerationStatus, Source, SourceEditMode, SourceStatus, SourceType } from '@/types/sources';
 import { isValidUrl } from '@/utils/app/common';
 
@@ -31,6 +31,7 @@ interface SourceInputProps {
   control: Control<FormValues, any>;
   isAddingModeRef: React.MutableRefObject<boolean>;
   inProgressUrls: string[];
+  onPasteList: (links: string[]) => void;
 }
 
 export const SourceInput: React.FC<SourceInputProps> = ({
@@ -51,9 +52,10 @@ export const SourceInput: React.FC<SourceInputProps> = ({
   isAddingModeRef,
   inProgressUrls,
   generationStatus,
+  onPasteList,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const sourcesNames = useBuilderSelector(BuilderSelectors.selectSourcesNames);
+  const sourcesNames = useBuilderSelector(SourcesSelectors.selectSourcesNames);
 
   useEffect(() => {
     if (editableIndex === index && inputRef.current) {
@@ -61,42 +63,45 @@ export const SourceInput: React.FC<SourceInputProps> = ({
     }
   }, [editableIndex, index, field.type]);
 
-  const renderSourceStatus = (field: Source) => {
-    if (editableIndex === index) return null;
+  const renderSourceStatus = useCallback(
+    (field: Source) => {
+      if (editableIndex === index) return null;
 
-    if (!field.status || field.status === SourceStatus.INPROGRESS || inProgressUrls.includes(field.url)) {
-      return <Loader size={16} containerClassName="absolute left-1 !w-fit" loaderClassName="!text-primary" />;
-    }
+      if (!field.status || field.status === SourceStatus.INPROGRESS || inProgressUrls.includes(field.url)) {
+        return <Loader size={16} containerClassName="absolute left-1 !w-fit" loaderClassName="!text-primary" />;
+      }
 
-    if (field.status === SourceStatus.FAILED) {
-      return (
-        <Tooltip
-          tooltip={field.status_description}
-          triggerClassName="absolute left-0.5"
-          contentClassName="text-xs px-2 text-primary"
-        >
-          <IconPointFilled size={20} className="text-error" />
-        </Tooltip>
-      );
-    }
+      if (field.status === SourceStatus.FAILED) {
+        return (
+          <Tooltip
+            tooltip={field.status_description}
+            triggerClassName="absolute left-0.5"
+            contentClassName="text-xs px-2 text-primary"
+          >
+            <IconPointFilled size={20} className="text-error" />
+          </Tooltip>
+        );
+      }
 
-    if (
-      generationStatus !== GenerationStatus.NOT_STARTED &&
-      (!field.in_graph || field.status === SourceStatus.REMOVED)
-    ) {
-      return (
-        <Tooltip
-          tooltip="Hasn't been applied to the graph. The knowledge base has been updated."
-          triggerClassName="absolute left-0.5"
-          contentClassName="text-xs px-2 text-primary"
-        >
-          <IconPointFilled size={20} className="text-warning" />
-        </Tooltip>
-      );
-    }
+      if (
+        generationStatus !== GenerationStatus.NOT_STARTED &&
+        (!field.in_graph || field.status === SourceStatus.REMOVED)
+      ) {
+        return (
+          <Tooltip
+            tooltip="Hasn't been applied to the graph. The knowledge base has been updated."
+            triggerClassName="absolute left-0.5"
+            contentClassName="text-xs px-2 text-primary"
+          >
+            <IconPointFilled size={20} className="text-warning" />
+          </Tooltip>
+        );
+      }
 
-    return null;
-  };
+      return null;
+    },
+    [editableIndex, index, generationStatus, inProgressUrls],
+  );
 
   return (
     <div className="group relative flex flex-col">
@@ -143,6 +148,7 @@ export const SourceInput: React.FC<SourceInputProps> = ({
               generationStatus={generationStatus}
               inProgressUrls={inProgressUrls}
               globalSourceName={field.id ? sourcesNames[field.id] : undefined}
+              onPasteList={onPasteList}
             />
           )}
         />

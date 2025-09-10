@@ -3,6 +3,7 @@ import bytes from 'bytes';
 
 import { UIActions } from '@/store/builder/ui/ui.reducers';
 import {
+  getFilesWithInvalidFileExtension,
   getFilesWithInvalidFileName,
   getFilesWithInvalidFileSize,
   getFilesWithInvalidFileType,
@@ -14,10 +15,17 @@ export const sanitizeAndReportFiles = (
   dispatch: Dispatch,
   allowedTypes: string[],
   maxFileSize: number,
+  allowedExtensions?: string[],
 ): File[] => {
   const incorrectSizeFiles: string[] = getFilesWithInvalidFileSize(files, maxFileSize).map(file => file.name);
   const incorrectTypeFiles: string[] = getFilesWithInvalidFileType(files, allowedTypes).map(file => file.name);
-  const invalidFileNames = new Set([...incorrectSizeFiles, ...incorrectTypeFiles]);
+
+  const incorrectExtensionFiles: string[] = allowedExtensions?.length
+    ? getFilesWithInvalidFileExtension(files, allowedExtensions).map(file => file.name)
+    : [];
+
+  const invalidFileNames = new Set([...incorrectSizeFiles, ...incorrectTypeFiles, ...incorrectExtensionFiles]);
+
   let filteredFiles = files.filter(file => !invalidFileNames.has(file.name));
 
   if (incorrectSizeFiles.length > 0) {

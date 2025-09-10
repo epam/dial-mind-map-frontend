@@ -16,7 +16,7 @@ import { Source, SourceStatus } from '@/types/sources';
  * @param sources - An array of `Source` objects to be processed.
  * @returns A new array of `Source` objects with adjusted statuses where applicable.
  */
-export const adjustSourcesStatuses = (sources: Source[]) =>
+export const adjustSourcesStatuses = (sources: Source[]): Source[] =>
   sources.map(s => {
     if (s.status !== SourceStatus.INPROGRESS || (!s.updated && !s.created)) {
       return s;

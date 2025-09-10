@@ -5,10 +5,12 @@ export { AuthSelectors };
 
 export interface AuthState {
   redirectToSignin: boolean;
+  redirectToForbidden: boolean;
 }
 
 const initialState: AuthState = {
   redirectToSignin: false,
+  redirectToForbidden: false,
 };
 
 const authSlice = createSlice({
@@ -20,6 +22,9 @@ const authSlice = createSlice({
     },
     resetRedirect(state) {
       state.redirectToSignin = false;
+    },
+    redirectToForbidden(state) {
+      state.redirectToForbidden = true;
     },
   },
 });

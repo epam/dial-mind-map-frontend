@@ -19,11 +19,14 @@ declare global {
       DIAL_API_KEY?: string;
 
       DIAL_API_HOST: string;
-      ALLOW_API_KEY_AUTH: boolean;
+      ALLOW_API_KEY_AUTH: string;
 
       RECAPTCHA_SITE_KEY?: string;
       RECAPTCHA_SECRET_KEY?: string;
       ANONYM_SESSION_SECRET_KEY?: string;
+
+      GOOGLE_FONTS_API_KEY?: string;
+      THEMES_CONFIG?: string;
     }
   }
 

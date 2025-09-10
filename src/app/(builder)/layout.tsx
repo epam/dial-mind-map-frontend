@@ -3,12 +3,14 @@ import '../globals.css';
 import classNames from 'classnames';
 import type { Metadata } from 'next';
 import { getServerSession } from 'next-auth';
-import { getProviders } from 'next-auth/react';
 
 import { NavigationHandler } from '@/components/builder/NavigationHandler';
 import { BuilderStoreProvider } from '@/components/builder/store/StoreProvider';
+import { AccessDenied } from '@/components/common/AccessDenied';
 import SessionProvider from '@/components/common/auth/SessionProvider';
 import { Toasts } from '@/components/common/Toasts';
+import { AuthUiMode } from '@/types/auth';
+import { nextauthOptions } from '@/utils/auth/auth-callbacks';
 
 import { inter } from '../../fonts/fonts';
 
@@ -23,11 +25,20 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await getServerSession();
-  const providers = await getProviders();
+  const availableProviders = nextauthOptions.providers;
   const dialApiHost = process.env.DIAL_API_HOST || '';
   const dialChatHost = process.env.DIAL_CHAT_HOST || '';
   const mindmapIframeTitle = process.env.MINDMAP_IFRAME_TITLE || '';
   const isAllowApiKeyAuth = process.env.ALLOW_API_KEY_AUTH || false;
+  const googleFontsApiKey = process.env.GOOGLE_FONTS_API_KEY || '';
+  const authUiMode = (process.env.AUTH_UI_MODE as AuthUiMode) || AuthUiMode.Popup;
+  const isSimpleGenerationModeAvailable = process.env.SIMPLE_GENERATION_MODE_AVAILABLE === 'true';
+  const defaultSimpleModeModel = process.env.DEFAULT_SIMPLE_MODE_MODEL || 'gemini-2.5-pro';
+  const defaultSimpleModePrompt = process.env.DEFAULT_SIMPLE_MODE_PROMPT || '';
+
+  if (isAllowApiKeyAuth === 'true') {
+    return <AccessDenied />;
+  }
 
   return (
     <html lang="en" className="dark" data-color-mode="dark">
@@ -38,8 +49,13 @@ export default async function RootLayout({
             dialApiHost={dialApiHost}
             dialChatHost={dialChatHost}
             mindmapIframeTitle={mindmapIframeTitle}
-            isAllowApiKeyAuth={isAllowApiKeyAuth}
-            providers={providers ? Object.values(providers).map(provider => provider.id) : []}
+            isAllowApiKeyAuth={isAllowApiKeyAuth === 'true' || false}
+            providers={availableProviders ? Object.values(availableProviders).map(provider => provider.id) : []}
+            googleFontsApiKey={googleFontsApiKey}
+            authUiMode={authUiMode}
+            isSimpleGenerationModeAvailable={isSimpleGenerationModeAvailable}
+            defaultSimpleModeModel={defaultSimpleModeModel}
+            defaultSimpleModePrompt={defaultSimpleModePrompt}
           >
             <Toasts />
             <NavigationHandler />

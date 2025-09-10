@@ -2,53 +2,68 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { AuthParams } from '@/types/api';
 import { DialAIError } from '@/types/error';
-import { constructPath } from '@/utils/app/file';
 import { withAuth } from '@/utils/auth/withAuth';
-import { ServerUtils } from '@/utils/server/api';
 import { getApiHeaders } from '@/utils/server/get-headers';
+import { getEntityUrlFromSlugs } from '@/utils/server/getEntityUrlFromSlugs';
+import { logger } from '@/utils/server/logger';
 import { withLogger } from '@/utils/server/withLogger';
 
-const getEntityUrlFromSlugs = (dialApiHost: string, slugs: string[]): string => {
-  if (!slugs || slugs.length === 0) {
-    throw new DialAIError(`No applications path provided`, '', '', '400');
-  }
-
-  return constructPath(dialApiHost, 'v1', 'applications', ServerUtils.encodeSlugs(slugs));
-};
-
 async function handleGetRequest(req: NextRequest, authParams: AuthParams, context: { params: { slug: string[] } }) {
-  const url = getEntityUrlFromSlugs(process.env.DIAL_API_HOST!, context.params.slug);
+  try {
+    const url = getEntityUrlFromSlugs(process.env.DIAL_API_HOST!, context.params.slug);
 
-  const reqHeaders = getApiHeaders({
-    authParams: authParams,
-  });
+    let proxyRes;
+    try {
+      proxyRes = await fetch(url, {
+        headers: getApiHeaders({
+          authParams: authParams,
+        }),
+      });
+      logger.info({ status: proxyRes.status, statusText: proxyRes.statusText }, 'Received response from entity API.');
+    } catch (fetchError) {
+      logger.error({ error: fetchError, url }, 'Failed to fetch entity API.');
+      return NextResponse.json({ error: 'Failed to fetch entity API.' }, { status: 500 });
+    }
 
-  const proxyRes = await fetch(url, {
-    headers: reqHeaders,
-  });
+    if (!proxyRes.ok) {
+      const respText = await proxyRes.text();
+      logger.error(
+        {
+          url,
+          status: proxyRes.status,
+          statusText: proxyRes.statusText,
+          responseText: respText,
+        },
+        'Entity API responded with an error.',
+      );
+      return NextResponse.json(
+        { error: 'Entity API responded with an error.' },
+        { status: proxyRes.status, statusText: proxyRes.statusText },
+      );
+    }
 
-  if (!proxyRes.ok) {
-    const respText = await proxyRes.text();
-    throw new DialAIError(
-      `Requesting entity failed - '${url}' ${proxyRes.statusText} ${proxyRes.status}. Error: ${respText}`,
-      '',
-      '',
-      proxyRes.status + '',
+    const headers = new Headers();
+    headers.set('transfer-encoding', 'chunked');
+    headers.set(
+      'Content-Type',
+      proxyRes.headers.get('Content-Type') ?? req.headers.get('content-type') ?? 'application/json',
     );
-  }
 
-  const headers = new Headers();
-  headers.set('transfer-encoding', 'chunked');
-  headers.set(
-    'Content-Type',
-    proxyRes.headers.get('Content-Type') ?? req.headers.get('content-type') ?? 'application/json',
-  );
+    let json;
+    try {
+      json = await proxyRes.json();
+    } catch (jsonError) {
+      logger.error({ error: jsonError }, 'Failed to parse JSON response from entity API.');
+      return NextResponse.json({ error: 'Failed to parse JSON response from entity API.' }, { status: 500 });
+    }
 
-  const readableStream = proxyRes.body;
-  if (readableStream) {
-    return new NextResponse(readableStream, { headers });
-  } else {
-    return NextResponse.json({}, { headers });
+    return NextResponse.json(json, {
+      status: proxyRes.status,
+      headers,
+    });
+  } catch (error) {
+    logger.error({ error, context }, 'An error occurred while handling the GET request.');
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 

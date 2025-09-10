@@ -2,20 +2,21 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useHotkeys } from 'react-hotkeys-hook';
 
-import Button from '@/components/common/Button/Button';
-import { AllowedSourceFilesTypes, MindmapSourcesFolderName } from '@/constants/app';
+import { AllowedSourceFilesTypesList } from '@/constants/app';
 import { ApplicationSelectors } from '@/store/builder/application/application.reducer';
 import { BuilderActions, BuilderSelectors } from '@/store/builder/builder/builder.reducers';
 import { useBuilderDispatch, useBuilderSelector } from '@/store/builder/hooks';
+import { SourcesActions, SourcesSelectors } from '@/store/builder/sources/sources.reducers';
 import { UIActions, UISelectors } from '@/store/builder/ui/ui.reducers';
-import { CreateSource, GenerationStatus, Source, SourceEditMode, SourceStatus, SourceType } from '@/types/sources';
-import { generateMindmapFolderPath } from '@/utils/app/application';
-import { getDecodedFolderPath } from '@/utils/app/folders';
+import { GenerationType } from '@/types/generate';
+import { CreateSource, Source, SourceEditMode, SourceStatus, SourceType } from '@/types/sources';
+import { ToastType } from '@/types/toasts';
 
-import Tooltip from '../../common/Tooltip';
+import { SimpleModeSettings } from './components/SimpleModeSettings';
+import { SourceEditorFooter } from './components/SourceEditorFooter';
 import { SourcesTable } from './components/SourcesTable';
 import { SourceToGraphConfirmModal } from './components/SourceToGraphConfirmModal';
-import { VersionsHistoryModal } from './components/VersionsHistoryModal';
+import { VersionsHistoryModal } from './components/VersionsHistoryModal/VersionsHistoryModal';
 import { FormValues } from './data';
 import { useSourceFileUpload } from './hooks/useSourceFileUpload';
 import { useSourceQueue } from './hooks/useSourceQueue';
@@ -24,19 +25,25 @@ export const SourceEditor: React.FC = () => {
   const listRef = useRef<HTMLDivElement>(null);
   const dispatch = useBuilderDispatch();
 
-  const globalSources = useBuilderSelector(BuilderSelectors.selectSources);
-  const application = useBuilderSelector(ApplicationSelectors.selectApplication);
-  const mindmapFolder = useBuilderSelector(ApplicationSelectors.selectMindmapFolder);
+  const globalSources = useBuilderSelector(SourcesSelectors.selectSources);
   const generationStatus = useBuilderSelector(BuilderSelectors.selectGenerationStatus);
   const applicationName = useBuilderSelector(ApplicationSelectors.selectApplicationName);
-  const folderPath = getDecodedFolderPath(
-    mindmapFolder ?? generateMindmapFolderPath(application),
-    MindmapSourcesFolderName,
-  );
+
   const sourceIdInVersionsModal = useBuilderSelector(UISelectors.selectSourceIdInVersionsModal);
 
-  const { enqueueLink, enqueueDelete, enqueueFile, enqueueUpdate, enqueueRename, inProgressUrls, deletingUrls } =
-    useSourceQueue();
+  const isSimpleGenerationModeAvailable = useBuilderSelector(UISelectors.selectIsSimpleGenerationModeAvailable);
+  const generationType = useBuilderSelector(BuilderSelectors.selectGenerationType);
+
+  const {
+    enqueueLink,
+    enqueueDelete,
+    enqueueFile,
+    enqueueUpdate,
+    enqueueRename,
+    inProgressUrls,
+    deletingUrls,
+    enqueueReindexSources,
+  } = useSourceQueue();
 
   const [editableIndex, setEditableIndex] = useState<number | null>(null);
   const [editMode, setEditMode] = useState<SourceEditMode>(null);
@@ -63,7 +70,15 @@ export const SourceEditor: React.FC = () => {
   });
 
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
-  const handleSelectionReset = useCallback(() => setSelectedRows([]), [setSelectedRows]);
+
+  const handleSelectionReset = useCallback(() => {
+    if (selectedRows.length === fields.length) {
+      setSelectedRows([]);
+    } else {
+      setSelectedRows(fields.map((_, index) => index));
+    }
+  }, [fields, selectedRows.length, setSelectedRows]);
+
   const handleRowSelection = useCallback(
     (index: number) => {
       setSelectedRows(prev => (prev.includes(index) ? prev.filter(row => row !== index) : [...prev, index]));
@@ -82,7 +97,7 @@ export const SourceEditor: React.FC = () => {
 
   // keep scroll at bottom
   useEffect(() => {
-    if (listRef.current) {
+    if (listRef.current && editMode === 'add') {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
   }, [fields]);
@@ -147,12 +162,14 @@ export const SourceEditor: React.FC = () => {
             name: file.name,
             url: file.name,
             type: SourceType.FILE,
+            status: SourceStatus.INPROGRESS,
           });
         } else {
           append({
             name: file.name,
             url: file.name,
             type: SourceType.FILE,
+            status: SourceStatus.INPROGRESS,
           });
         }
 
@@ -164,13 +181,14 @@ export const SourceEditor: React.FC = () => {
         append({
           url: link,
           type: SourceType.LINK,
+          status: SourceStatus.INPROGRESS,
         });
         setEditableIndex(fields.length);
         setEditMode('add');
         isAddingModeRef.current = true;
       }
     },
-    [append, enqueueFile, fields, trigger],
+    [append, enqueueFile, fields, trigger, insert, remove],
   );
 
   const handleConfirmAdd = useCallback(
@@ -185,7 +203,7 @@ export const SourceEditor: React.FC = () => {
       setEditMode(null);
       isAddingModeRef.current = false;
     },
-    [enqueueFile, enqueueLink, getValues],
+    [enqueueLink, getValues],
   );
 
   const handleEdit = useCallback(
@@ -205,7 +223,7 @@ export const SourceEditor: React.FC = () => {
       // remove(index);
       enqueueDelete(src);
     },
-    [getValues, remove, enqueueDelete],
+    [getValues, enqueueDelete],
   );
 
   const handleDownload = useCallback(
@@ -213,7 +231,7 @@ export const SourceEditor: React.FC = () => {
       const src = getValues(`sources.${index}`);
       if (src.id && src.version) {
         dispatch(
-          BuilderActions.downloadSource({ sourceId: src.id, versionId: src.version, name: src.name ?? src.url }),
+          SourcesActions.downloadSource({ sourceId: src.id, versionId: src.version, name: src.name ?? src.url }),
         );
       }
     },
@@ -248,7 +266,7 @@ export const SourceEditor: React.FC = () => {
       setEditMode(null);
       originalDataRef.current = null;
     },
-    [getValues, enqueueUpdate, enqueueLink, enqueueRename, remove, insert, update, dispatch, editMode],
+    [getValues, enqueueUpdate, enqueueLink, enqueueRename, remove, insert, dispatch, editMode],
   );
 
   const handleAddVersion = useCallback(
@@ -280,7 +298,7 @@ export const SourceEditor: React.FC = () => {
         }
       }
     },
-    [fields, enqueueFile, enqueueLink],
+    [fields, enqueueFile, enqueueLink, insert, remove],
   );
 
   const handleRefreshLink = useCallback(
@@ -294,7 +312,7 @@ export const SourceEditor: React.FC = () => {
         enqueueLink({ link: url, sourceId: source.id, versionId: source.version });
       }
     },
-    [getValues, remove, insert, enqueueLink],
+    [getValues, enqueueLink],
   );
 
   const handleCancel = useCallback(async () => {
@@ -336,10 +354,9 @@ export const SourceEditor: React.FC = () => {
   const watchedSources = useWatch({
     control,
     name: 'sources',
-  }) as Source[];
+  });
 
   const { handleSelectFiles } = useSourceFileUpload({
-    folderPath,
     watchedSources,
     handleAddSource,
   });
@@ -362,7 +379,7 @@ export const SourceEditor: React.FC = () => {
         handleEdit(sourceIndex);
       }
     }
-  }, [sourceIdToAddVersion, globalSources, fields]);
+  }, [sourceIdToAddVersion, globalSources, fields, dispatch, handleEdit]);
 
   const handleGenerateGraph = useCallback(() => {
     dispatch(
@@ -382,83 +399,152 @@ export const SourceEditor: React.FC = () => {
         name: applicationName,
       }),
     );
-  }, [applicationName, dispatch, globalSources, selectedRows]);
+  }, [applicationName, dispatch, selectedRows, fields]);
+
+  const onDeleteSelection = useCallback(() => {
+    selectedRows.forEach(index => {
+      const source = getValues(`sources.${index}`);
+      enqueueDelete(source);
+    });
+    setSelectedRows([]);
+  }, [selectedRows, getValues, enqueueDelete]);
+
+  const onReindexSelection = useCallback(() => {
+    const sources = selectedRows
+      .map(index => {
+        const source = getValues(`sources.${index}`);
+        if (source.type !== SourceType.LINK) {
+          return;
+        }
+        return source;
+      })
+      .filter(Boolean) as Source[];
+    enqueueReindexSources(sources);
+    setSelectedRows([]);
+  }, [selectedRows, getValues, setSelectedRows, enqueueReindexSources]);
+
+  const handlePasteLinks = useCallback(
+    (links: string[]) => {
+      if (!links?.length) return;
+
+      if (editableIndex !== null) {
+        if (isAddingModeRef.current) {
+          remove(editableIndex);
+        }
+      }
+      const formSources = getValues('sources');
+
+      const duplicates = formSources.filter(source => source.type === SourceType.LINK && links.includes(source.url));
+      if (duplicates.length) {
+        dispatch(
+          UIActions.showToast({
+            message: `Links ${duplicates.map(d => d.name).join(', ')} already exist`,
+            type: ToastType.Error,
+            duration: 1500,
+          }),
+        );
+      }
+
+      links.forEach(link => {
+        const existingIndex = formSources.findIndex(source => source.type === SourceType.LINK && source.url === link);
+        if (existingIndex === -1) {
+          append({
+            url: link,
+            type: SourceType.LINK,
+            status: SourceStatus.INPROGRESS,
+          });
+          enqueueLink({ link });
+        }
+      });
+
+      setEditableIndex(null);
+      setEditMode(null);
+      isAddingModeRef.current = false;
+    },
+    [enqueueLink, remove, append, setEditableIndex, setEditMode, editableIndex, getValues, dispatch],
+  );
 
   const hasFailedSource = useMemo(() => fields.some(s => s.status !== SourceStatus.INDEXED), [fields]);
 
+  const generateParams = useBuilderSelector(BuilderSelectors.selectGenerateParams);
+
   return (
-    <div className="flex size-full flex-col gap-px rounded bg-layer-3 text-primary shadow-mindmap">
+    <div className="mx-3 mb-3 flex size-full flex-col gap-px rounded bg-layer-3 pt-1 text-primary shadow-mindmap">
       <div className="flex size-full flex-col">
-        <div ref={listRef} className="max-h-[calc(100vh-158px)] grow overflow-y-auto">
-          <SourcesTable
-            editableIndex={editableIndex}
-            editMode={editMode}
-            fields={fields}
-            isValid={isValid}
-            errors={errors}
-            selectedRows={selectedRows}
-            handleRowSelection={handleRowSelection}
-            handleSelectionReset={handleSelectionReset}
-            handleKeyDown={handleKeyDown}
-            handleConfirmEdit={handleConfirmEdit}
-            handleConfirmAdd={handleConfirmAdd}
-            handleCancel={handleCancel}
-            handleEdit={handleEdit}
-            handleDelete={handleDelete}
-            handleDownload={handleDownload}
-            control={control}
-            inProgressUrls={inProgressUrls}
-            isAddingModeRef={isAddingModeRef}
-            generationStatus={generationStatus}
-            handleAddSource={handleAddSource}
-            handleSelectFiles={handleSelectFiles}
-            handleRefreshLink={handleRefreshLink}
-          />
-          <input
-            name="upload"
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            onChange={e => {
-              const source = globalSources.find(s => s.id === sourceIdToAddVersionRef.current && s.active);
-              if (source?.status === SourceStatus.FAILED) {
-                handleSelectFiles(e, sourceIdToAddVersionRef.current, source.version);
-              } else {
-                handleSelectFiles(e, sourceIdToAddVersionRef.current);
-              }
-              sourceIdToAddVersionRef.current = undefined;
-            }}
-            disabled={!isValid}
-            accept={AllowedSourceFilesTypes.join(',')}
-            aria-label="upload file"
-          />
+        <div className="max-h-[calc(100vh-158px)] grow overflow-y-auto">
+          <div className="flex h-full">
+            <div ref={listRef} className="grow overflow-y-auto">
+              <SourcesTable
+                editableIndex={editableIndex}
+                editMode={editMode}
+                fields={fields}
+                isValid={isValid}
+                errors={errors}
+                selectedRows={selectedRows}
+                handleRowSelection={handleRowSelection}
+                handleSelectionReset={handleSelectionReset}
+                handleKeyDown={handleKeyDown}
+                handleConfirmEdit={handleConfirmEdit}
+                handleConfirmAdd={handleConfirmAdd}
+                handleCancel={handleCancel}
+                handleEdit={handleEdit}
+                handleDelete={handleDelete}
+                handleDownload={handleDownload}
+                control={control}
+                inProgressUrls={inProgressUrls}
+                isAddingModeRef={isAddingModeRef}
+                generationStatus={generationStatus}
+                handleAddSource={handleAddSource}
+                handleSelectFiles={handleSelectFiles}
+                handleRefreshLink={handleRefreshLink}
+                isSimpleGenerationModeAvailable={isSimpleGenerationModeAvailable}
+                onPasteList={handlePasteLinks}
+              />
+              <input
+                name="upload"
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={e => {
+                  const source = globalSources.find(s => s.id === sourceIdToAddVersionRef.current && s.active);
+                  if (source?.status === SourceStatus.FAILED) {
+                    handleSelectFiles(e, sourceIdToAddVersionRef.current, source.version);
+                  } else {
+                    handleSelectFiles(e, sourceIdToAddVersionRef.current);
+                  }
+                  sourceIdToAddVersionRef.current = undefined;
+                }}
+                disabled={!isValid}
+                accept={AllowedSourceFilesTypesList.join(',')}
+                aria-label="upload file"
+              />
+            </div>
+
+            {isSimpleGenerationModeAvailable && generationType === GenerationType.Simple && <SimpleModeSettings />}
+          </div>
         </div>
 
-        {generationStatus === GenerationStatus.NOT_STARTED ? (
-          <div className="flex justify-end border-t border-tertiary px-6 py-4">
-            <Tooltip
-              contentClassName="text-sm px-2 text-primary"
-              tooltip={
-                !isValid || fields.length === 0 || hasFailedSource
-                  ? 'Cannot generate while sources are processing or have errors. Please resolve all sources first.'
-                  : 'Generate graph'
-              }
-            >
-              <Button
-                disabled={!isValid || fields.length === 0 || hasFailedSource}
-                variant="primary"
-                label="Generate Graph"
-                onClick={handleGenerateGraph}
-              />
-            </Tooltip>
-          </div>
-        ) : !!selectedRows.length ? (
-          <div className="flex justify-end border-t border-tertiary px-6 py-4">
-            <Tooltip contentClassName="text-sm px-2 text-primary" tooltip={'Apply to graph'}>
-              <Button variant="primary" label="Apply to graph" onClick={handleApplySelectionToGraph} />
-            </Tooltip>
-          </div>
-        ) : null}
+        <SourceEditorFooter
+          generationStatus={generationStatus}
+          isValid={isValid}
+          fieldsLength={fields.length}
+          hasFailedSource={hasFailedSource}
+          selectedRowsLength={selectedRows.length}
+          onGenerate={handleGenerateGraph}
+          onApplySelection={handleApplySelectionToGraph}
+          onDeleteSelection={onDeleteSelection}
+          onReindexSelection={onReindexSelection}
+          showSimpleModeSwitcher={isSimpleGenerationModeAvailable && generationType !== GenerationType.Simple}
+          onToggleSimpleMode={(checked: boolean) => {
+            dispatch(
+              BuilderActions.updateGenerateParams({
+                ...generateParams,
+                type: checked ? GenerationType.Simple : GenerationType.Universal,
+              }),
+            );
+          }}
+        />
+
         {sourceIdInVersionsModal !== undefined && (
           <VersionsHistoryModal
             isOpen={sourceIdInVersionsModal !== undefined}

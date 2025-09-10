@@ -45,9 +45,7 @@ export const updateNameHandler = async (
       if (response.status === 401) {
         return new NextResponse(errorsMessages.unauthorized, { status: 401 });
       }
-      return new NextResponse(errRespText, {
-        status: 400,
-      });
+      return new NextResponse(errRespText, { status: response.status });
     }
 
     const text = await response.text();

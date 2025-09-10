@@ -61,8 +61,8 @@ export const GraphEditor = () => {
   );
 
   const updateNodesPositionsHandler = useCallback(
-    (positionedNodes: PositionedElement<Node>[]) => {
-      dispatch(BuilderActions.updateNodesPositions(positionedNodes));
+    (positionedNodes: PositionedElement<Node>[], historySkip?: boolean) => {
+      dispatch(BuilderActions.updateNodesPositions({ positionedNodes, historySkip }));
     },
     [dispatch],
   );

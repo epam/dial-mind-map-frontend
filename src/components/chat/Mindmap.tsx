@@ -3,18 +3,20 @@
 import classNames from 'classnames';
 import { useCallback, useMemo, useRef } from 'react';
 
+import { AppearanceSelectors } from '@/store/chat/appearance/appearance.reducers';
 import { ApplicationSelectors } from '@/store/chat/application/application.reducer';
 import { ConversationActions } from '@/store/chat/conversation/conversation.reducers';
 import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
 import { MindmapActions, MindmapSelectors } from '@/store/chat/mindmap/mindmap.reducers';
 import { ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
+import { IconResourceKey } from '@/types/customization';
 import { Node } from '@/types/graph';
 
 import { DesktopChat } from './chat/DesktopChat';
 import { DraggableChat } from './chat/DraggableChat';
 import GraphComponent from './graph/GraphComponent';
+import { useWebFontReady } from './graph/hooks/useWebFontReady';
 import { GraphError } from './GraphError';
-import { LevelSwitcher } from './LevelSwitcher';
 import { ReferenceFullscreenView } from './reference/ReferenceFullscreenView';
 
 export const Mindmap = () => {
@@ -34,6 +36,9 @@ export const Mindmap = () => {
   const viewRef = useRef(null);
   const isNotFound = useChatSelector(MindmapSelectors.selectIsNotFound);
   const isRootNodeNotFound = useChatSelector(MindmapSelectors.selectIsRootNodeNotFound);
+
+  const themeConfig = useChatSelector(AppearanceSelectors.selectThemeConfig);
+  let fontFamily = themeConfig?.graph?.font?.['font-family'] || themeConfig?.font?.['font-family'] || '';
 
   const errorTittle = useMemo(() => {
     if (isRootNodeNotFound) {
@@ -57,12 +62,28 @@ export const Mindmap = () => {
     [dispatch],
   );
 
+  const { isReady: fontIsLoaded, status: fontStatus } = useWebFontReady(fontFamily);
+
+  let isFontReady = !fontFamily || fontIsLoaded;
+  if (fontStatus === 'timeout') {
+    fontFamily =
+      fontFamily !== themeConfig?.font?.['font-family'] && themeConfig?.font?.['font-family']
+        ? themeConfig?.font?.['font-family']
+        : '';
+    isFontReady = true;
+  }
+
+  const isGraphReady = hasAppReference && themeConfig?.graph && isFontReady;
+
   return (
     <div
       className={classNames([
         'relative h-full w-full flex flex-col  gap-2',
-        !isMapHidden && 'xl:flex-row',
-        isMapHidden && 'justify-center items-center',
+        isMapHidden
+          ? 'justify-center items-center'
+          : themeConfig?.chat?.chatSide === 'left'
+            ? 'xl:flex-row-reverse'
+            : 'xl:flex-row',
       ])}
       ref={viewRef}
     >
@@ -80,23 +101,20 @@ export const Mindmap = () => {
         {fullscreenReferences && (
           <ReferenceFullscreenView references={fullscreenReferences} mindmapFolder={mindmapFolder} />
         )}
-        {!hasAppReference ? null : hasAppProperties && !isNotFound && !isRootNodeNotFound ? (
-          <>
-            <GraphComponent
-              isReady={isReady}
-              elements={elements}
-              focusNodeId={focusNodeId}
-              isChatHidden={isChatHidden}
-              visitedNodes={visitedNodes}
-              updateSignal={updateSignal}
-              onFocusNodeChange={focusNodeIdHandler}
-            />
-            {deviceType !== DeviceType.Mobile && (
-              <LevelSwitcher
-                classes={classNames(['absolute bottom-2 lg:bottom-4 xl:bottom-0', isChatHidden && 'bottom-[130px]'])}
-              />
-            )}
-          </>
+        {!isGraphReady ? null : hasAppProperties && !isNotFound && !isRootNodeNotFound ? (
+          <GraphComponent
+            graphConfig={themeConfig?.graph}
+            fontFamily={fontFamily}
+            isReady={isReady}
+            elements={elements}
+            focusNodeId={focusNodeId}
+            isChatHidden={isChatHidden}
+            visitedNodes={visitedNodes}
+            updateSignal={updateSignal}
+            onFocusNodeChange={focusNodeIdHandler}
+            robotStorageIcon={themeConfig?.icons?.[IconResourceKey.RobotIcon]}
+            arrowBackStorageIcon={themeConfig?.icons?.[IconResourceKey.ArrowBackIcon]}
+          />
         ) : (
           <GraphError title={errorTittle} description={errorDescription} />
         )}

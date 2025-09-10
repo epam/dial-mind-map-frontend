@@ -1,32 +1,37 @@
 'use client';
 
-import cytoscape, { Core, CoseLayoutOptions, ElementAnimateOptionsBase, EventObject, NodeSingular } from 'cytoscape';
+import classNames from 'classnames';
+import cytoscape, { Core, CoseLayoutOptions, EventObject, NodeSingular } from 'cytoscape';
 import fcose from 'cytoscape-fcose';
 import cloneDeep from 'lodash-es/cloneDeep';
 import isEqual from 'lodash-es/isEqual';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ApplicationSelectors } from '@/store/chat/application/application.reducer';
 import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
-import { Element, GraphElement, Node } from '@/types/graph';
+import { PlaybackSelectors } from '@/store/chat/playback/playback.selectors';
+import { ChatUIActions, ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
+import { GraphConfig, GraphImgResourceKey, GraphNodeType } from '@/types/customization';
+import { Element, GraphElement, Node, SystemNodeDataKeys } from '@/types/graph';
 
+import { FitGraph } from '../FitGraph';
+import { LevelSwitcher } from '../LevelSwitcher';
 import { useDebouncedGraphUpdate } from './hooks/useDebouncedGraphUpdate';
 import { useThrottledResizeGraph } from './hooks/useThrottledResizeGraph';
 import {
-  ExtraFontWhileHovering,
-  ExtraWidthForNodesWithImages,
   FitDurationMs,
   getCytoscapeStyles,
+  getSecondLayoutOptions,
   GraphPadding,
   HoverDurationMs,
   InitLayoutOptions,
-  SecondLayoutOptions,
 } from './options';
 import { adjustMessages } from './utils/adjustMessages';
 import { filterInvalidEdges } from './utils/graph/filterInvalidEdges';
 import { markParents } from './utils/graph/markParents';
+import { sanitizeElements } from './utils/sanitizeElements';
 import { adjustElementsStyles, adjustNeonedNodeStyles } from './utils/styles/adjustElementsStyles';
-import { extractNumberFromString, getWidth } from './utils/styles/styles';
+import { getHoverEffectStyles } from './utils/styles/getHoverEffectStyles';
 
 cytoscape.use(fcose);
 
@@ -37,6 +42,10 @@ interface Props {
   visitedNodes: Record<string, string>;
   updateSignal: number;
   isChatHidden: boolean;
+  graphConfig: GraphConfig;
+  fontFamily?: string;
+  robotStorageIcon?: string;
+  arrowBackStorageIcon?: string;
   onFocusNodeChange: (node: Node) => void;
 }
 
@@ -48,6 +57,10 @@ const GraphComponent = ({
   updateSignal,
   isReady,
   isChatHidden,
+  graphConfig,
+  fontFamily,
+  robotStorageIcon,
+  arrowBackStorageIcon,
 }: Props) => {
   const cyRef = useRef<HTMLDivElement>(null);
 
@@ -68,7 +81,30 @@ const GraphComponent = ({
   const hoveredNodeFontSizesRef = useRef<Map<string, number>>(new Map<string, number>());
 
   const mindmapFolder = useChatSelector(ApplicationSelectors.selectMindmapFolder);
-  const cytoscapeStyles: cytoscape.StylesheetStyle[] = getCytoscapeStyles(mindmapFolder ?? '');
+  const mindmapAppName = useChatSelector(ApplicationSelectors.selectAppName);
+  const theme = useChatSelector(ChatUISelectors.selectThemeName);
+  const deviceType = useChatSelector(ChatUISelectors.selectDeviceType);
+
+  const isPlayback = useChatSelector(PlaybackSelectors.selectIsPlayback);
+
+  const cytoscapeStyles: cytoscape.StylesheetStyle[] = useMemo(
+    () =>
+      getCytoscapeStyles(
+        mindmapFolder ?? '',
+        mindmapAppName ?? '',
+        theme,
+        graphConfig,
+        fontFamily,
+        robotStorageIcon,
+        arrowBackStorageIcon,
+      ),
+    [mindmapFolder, mindmapAppName, graphConfig, fontFamily, robotStorageIcon, arrowBackStorageIcon, theme],
+  );
+
+  const secondLayoutOptions = useMemo(
+    () => getSecondLayoutOptions(graphConfig.cytoscapeLayoutSettings ?? undefined),
+    [graphConfig.cytoscapeLayoutSettings],
+  );
 
   useEffect(() => {
     if (updateSignal > 0) {
@@ -90,11 +126,13 @@ const GraphComponent = ({
       }
       subgraphElements = validElements;
       subgraphElements = markParents(subgraphElements, focusNodeId);
+      subgraphElements = sanitizeElements(subgraphElements, graphConfig.useNodeIconAsBgImage);
 
       const cy = cytoscape({
         container: cyRef.current,
         elements: subgraphElements,
         style: cytoscapeStyles,
+        wheelSensitivity: 0.4,
         layout: {
           randomize: true,
           ...InitLayoutOptions,
@@ -103,10 +141,11 @@ const GraphComponent = ({
 
       cy.on('tap', 'node', event => {
         const node = event.target as NodeSingular;
-        if (node.hasClass('focused') || node.hasClass('notap')) {
+        if (node.hasClass('focused') || node.hasClass('notap') || isPlayback) {
           return;
         }
 
+        node.data(SystemNodeDataKeys.NodeType, GraphNodeType.Root);
         nodeClickHandler(event);
         setIsInitialization(false);
         hoveredNodeFontSizesRef.current = new Map<string, number>();
@@ -114,73 +153,45 @@ const GraphComponent = ({
 
       cy.on('mouseover', 'node', event => {
         const node = event.target as NodeSingular;
-        if (node.hasClass('focused')) {
-          return;
-        }
 
         const container = cy.container();
         if (container) {
           container.style.cursor = 'pointer';
         }
 
-        if (node.data('neon')) {
+        if (node.data(SystemNodeDataKeys.Neon)) {
           return;
         }
 
-        let fontSize = extractNumberFromString(node.style('font-size'));
-        if (!hoveredNodeFontSizesRef.current.has(node.id())) {
-          hoveredNodeFontSizesRef.current.set(node.id(), fontSize);
-        } else {
-          fontSize = hoveredNodeFontSizesRef.current.get(node.id())!;
-        }
-        fontSize += ExtraFontWhileHovering;
-
-        const styles: ElementAnimateOptionsBase['style'] = {
-          'font-size': fontSize + 'px',
-          width: getWidth(node, fontSize),
-        };
-        if (node.hasClass('imaged') || node.data('icon')) {
-          styles.width += ExtraWidthForNodesWithImages;
-        }
+        const styles = getHoverEffectStyles(node, graphConfig, 'mouseover');
 
         node.animate({ style: styles }, { duration: HoverDurationMs, queue: false });
       });
 
       cy.on('mouseout', 'node', event => {
-        const node = event.target;
-
-        if (node.hasClass('focused')) {
-          return;
-        }
+        const node = event.target as NodeSingular;
 
         const container = cy.container();
         if (container) {
           container.style.cursor = 'default';
         }
 
-        if (node.data('neon')) {
+        if (node.data(SystemNodeDataKeys.Neon)) {
           return;
         }
 
-        if (hoveredNodeFontSizesRef.current.has(node.id())) {
-          const fontSize = hoveredNodeFontSizesRef.current.get(node.id())!;
-          const styles: ElementAnimateOptionsBase['style'] = {
-            'font-size': fontSize + 'px',
-            width: getWidth(node, fontSize),
-          };
-          if (node.hasClass('imaged') || node.data('icon')) {
-            styles.width += ExtraWidthForNodesWithImages;
-          }
-          node.animate({ style: styles }, { duration: HoverDurationMs, queue: false });
-        }
+        const styles = getHoverEffectStyles(node, graphConfig, 'mouseout');
+
+        node.animate({ style: styles }, { duration: HoverDurationMs, queue: false });
       });
 
       cy.on('layoutstart', () => {
+        cy.minZoom(0);
         cy.nodes().forEach(node => {
           node.addClass('notap');
         });
         cy.nodes('[?neon]').forEach(node => {
-          node.data('pulsating', false);
+          node.data(SystemNodeDataKeys.Pulsating, false);
         });
       });
 
@@ -205,7 +216,7 @@ const GraphComponent = ({
             cy.getElementById(parentId).remove();
           });
 
-          cy.layout(SecondLayoutOptions).run();
+          cy.layout(secondLayoutOptions).run();
         } else {
           additionalLayoutApplied.current = false;
           cy.animate({
@@ -216,13 +227,40 @@ const GraphComponent = ({
             duration: FitDurationMs,
             queue: false,
             complete: () => {
+              cy.minZoom(cy.zoom());
+
+              let minWidth = Infinity;
+              let minHeight = Infinity;
+
               cy.nodes().forEach(node => {
-                if (node.data('neon')) {
+                if (node.data(SystemNodeDataKeys.Neon)) {
                   adjustNeonedNodeStyles(node);
                 }
                 node.removeClass('notap');
+
+                const bb = node.boundingBox();
+                if (bb.w < minWidth) minWidth = bb.w;
+                if (bb.h < minHeight) minHeight = bb.h;
               });
+
+              const viewportWidth = cy.width();
+              const viewportHeight = cy.height();
+
+              // Calculate zoom factor so the smallest node fits viewport
+              const zoomX = viewportWidth / minWidth;
+              const zoomY = viewportHeight / minHeight;
+              const minZoom = Math.min(zoomX, zoomY);
+
+              cy.maxZoom(minZoom / 2);
             },
+          });
+
+          cy.on('pan dragfree', () => {
+            const extent = cy.extent();
+            const bb = cy.elements().boundingBox();
+            const isInside = bb.x1 >= extent.x1 && bb.y1 >= extent.y1 && bb.x2 <= extent.x2 && bb.y2 <= extent.y2;
+
+            dispatch(ChatUIActions.setIsFitGraphAvailable(!isInside));
           });
         }
       });
@@ -230,17 +268,35 @@ const GraphComponent = ({
       setCy(cy);
 
       const visitedNodesIds = Object.entries(visitedNodes).flatMap(([key, value]) => [key, value]);
-      const nodeColorMap = adjustElementsStyles(cy, focusNodeId, visitedNodesIds, previousNodeId);
+      const nodeColorMap = adjustElementsStyles(
+        cy,
+        focusNodeId,
+        visitedNodesIds,
+        previousNodeId,
+        graphConfig,
+        fontFamily,
+      );
 
       const focusNode = (elements.find(el => el.data.id === focusNodeId) ?? { data: { id: focusNodeId } }).data as Node;
 
-      adjustMessages(cy, focusNode, dispatch, nodeColorMap, previousNodeId, true);
+      adjustMessages({
+        cyInstance: cy,
+        focusNode,
+        dispatch,
+        mindmapAppName: mindmapAppName ?? '',
+        mindmapFolder,
+        theme,
+        nodeColorMap,
+        previousNodeId,
+        isInitialization: true,
+        defaultBgImg: graphConfig.images?.[GraphImgResourceKey.DefaultBgImg],
+      });
 
       return () => {
         cy.destroy();
       };
     }
-  }, [isReady, isChatHidden]);
+  }, [isReady, isChatHidden, cytoscapeStyles, fontFamily, secondLayoutOptions]);
 
   useThrottledResizeGraph(cy);
 
@@ -252,9 +308,71 @@ const GraphComponent = ({
     dispatch,
     isInitialization,
     updateSignal,
+    fontFamily,
+    mindmapAppName: mindmapAppName ?? '',
+    mindmapFolder,
+    theme,
+    graphConfig: graphConfig,
   });
 
-  return <div ref={cyRef} style={{ width: '100%', height: '100%' }} />;
+  cy?.container()?.addEventListener('wheel', event => {
+    if (!cy) return;
+
+    const isZoomingIn = event.deltaY < 0;
+    const isZoomingOut = event.deltaY > 0;
+
+    const zoom = +cy.zoom().toFixed(2);
+    const minZoom = +cy.minZoom().toFixed(2);
+    const maxZoom = +cy.maxZoom().toFixed(2);
+
+    if (isZoomingIn && zoom >= maxZoom) {
+      cy.userZoomingEnabled(false);
+      dispatch(ChatUIActions.setIsFitGraphAvailable(true));
+    } else if (isZoomingOut && zoom <= minZoom) {
+      cy.userZoomingEnabled(false);
+      dispatch(ChatUIActions.setIsFitGraphAvailable(false));
+    } else {
+      cy.userZoomingEnabled(true);
+      if (zoom > minZoom) {
+        dispatch(ChatUIActions.setIsFitGraphAvailable(true));
+      }
+    }
+  });
+
+  const fitGraphClickHandler = useCallback(() => {
+    if (!cy) return;
+
+    cy.minZoom(0);
+    cy.animate({
+      fit: {
+        eles: cy.elements(),
+        padding: GraphPadding,
+      },
+      duration: FitDurationMs,
+      queue: false,
+      complete: () => {
+        cy.minZoom(cy.zoom());
+      },
+    });
+    dispatch(ChatUIActions.setIsFitGraphAvailable(false));
+  }, [cy, dispatch]);
+
+  return (
+    <div className="relative size-full">
+      <div ref={cyRef} className="size-full" />
+      {deviceType !== DeviceType.Mobile && (
+        <div
+          className={classNames([
+            'absolute flex gap-3 bottom-3 lg:gap-4 lg:bottom-4 xl:bottom-0',
+            isChatHidden && 'bottom-[130px]',
+          ])}
+        >
+          <LevelSwitcher />
+          <FitGraph onClick={fitGraphClickHandler} />
+        </div>
+      )}
+    </div>
+  );
 };
 
 const areEqual = (prevProps: Props, nextProps: Props) => {
@@ -264,7 +382,11 @@ const areEqual = (prevProps: Props, nextProps: Props) => {
       prevProps.isReady === nextProps.isReady &&
       prevProps.isChatHidden === nextProps.isChatHidden &&
       isEqual(prevProps.visitedNodes, nextProps.visitedNodes) &&
-      isEqual(prevProps.elements, nextProps.elements)) ||
+      isEqual(prevProps.elements, nextProps.elements) &&
+      isEqual(prevProps.graphConfig, nextProps.graphConfig) &&
+      prevProps.fontFamily === nextProps.fontFamily &&
+      prevProps.robotStorageIcon === nextProps.robotStorageIcon &&
+      prevProps.arrowBackStorageIcon === nextProps.arrowBackStorageIcon) ||
     nextProps.elements.length === 0
   );
 };

@@ -13,6 +13,12 @@ jest.mock('next/navigation', () => ({
   useSearchParams: jest.fn(),
 }));
 
+jest.mock('@/components/common/Loader', () => {
+  const Loader = () => <div data-testid="loader" />;
+  Loader.displayName = 'Loader';
+  return Loader;
+});
+
 describe('SignInPage', () => {
   let mockUpdateSession: jest.Mock;
   let mockSearchParams: URLSearchParams;

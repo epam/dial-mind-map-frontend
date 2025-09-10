@@ -1,16 +1,17 @@
 import classNames from 'classnames';
+import { colord } from 'colord';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Slider, { Settings } from 'react-slick';
 
+import { AppearanceSelectors } from '@/store/chat/appearance/appearance.reducers';
 import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
 import { MindmapActions } from '@/store/chat/mindmap/mindmap.reducers';
 import { ReferenceActions } from '@/store/chat/reference/reference.reducers';
-import { ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
+import { ChatNodeType } from '@/types/customization';
 import { DocsReference, NodeReference } from '@/types/graph';
 import { SourceType } from '@/types/sources';
 
 import { Node } from '../../chat/conversation/messages/Node';
-import { BranchColorsMap } from '../../graph/options';
 import { ImageContent } from '../components/ImageContent';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { NodeContent } from '../components/NodeContent';
@@ -45,8 +46,8 @@ const makeSettings = (
 const getSlideContent = (
   reference: DocsReference | NodeReference,
   mindmapFolder: string,
-  deviceType: DeviceType,
   isFullscreen?: boolean,
+  availableHeight?: number | null,
 ) => {
   if (isDocsReference(reference)) {
     if (reference.doc_content_type === 'application/pdf' && isFullscreen) {
@@ -64,7 +65,7 @@ const getSlideContent = (
               reference={reference}
               folderPath={mindmapFolder}
               isFullscreenReference={isFullscreen}
-              deviceType={deviceType}
+              availableHeight={availableHeight}
             />
           ),
           contentType: 'image',
@@ -87,6 +88,8 @@ export const useReferenceSlider = ({
   isFullscreen = false,
   containerRef,
   initialSlideNumber = 0,
+  referenceId,
+  availableHeight = null,
 }: {
   setOpenTooltip?: (state: boolean) => void;
   references: Array<DocsReference | NodeReference>;
@@ -94,10 +97,12 @@ export const useReferenceSlider = ({
   isFullscreen?: boolean;
   containerRef?: React.RefObject<HTMLDivElement>;
   initialSlideNumber?: number;
+  referenceId?: string;
+  availableHeight?: number | null;
 }) => {
   const [current, setCurrent] = useState(initialSlideNumber);
   const sliderRef = useRef<Slider>(null);
-  const deviceType = useChatSelector(ChatUISelectors.selectDeviceType);
+  const themeConfig = useChatSelector(AppearanceSelectors.selectThemeConfig);
 
   const dispatch = useChatDispatch();
 
@@ -118,7 +123,10 @@ export const useReferenceSlider = ({
 
   const Title = useMemo(() => {
     if (isDocsReference(currentReference)) {
-      const name = currentReference.doc_name.split('/').at(-1) || currentReference.doc_name.split('/').at(-2);
+      const name =
+        currentReference.source_name ||
+        currentReference.doc_name.split('/').at(-1) ||
+        currentReference.doc_name.split('/').at(-2);
       if (currentReference.doc_type === SourceType.LINK) {
         return (
           <a
@@ -127,7 +135,7 @@ export const useReferenceSlider = ({
             rel="noopener noreferrer text-accent-primary"
             className="truncate text-accent-primary"
           >
-            {currentReference.doc_url}
+            {name}
           </a>
         );
       }
@@ -159,19 +167,35 @@ export const useReferenceSlider = ({
           id={currentReference.id}
           label={currentReference.label}
           isPrevious={false}
-          color={BranchColorsMap['#046280']}
+          color={
+            themeConfig?.graph.paletteSettings.branchesColors.at(0)?.bgColor ?? colord('#046280').darken(0.05).toHex()
+          }
+          textColor={
+            themeConfig?.graph.paletteSettings.branchesColors.at(0)?.textColor ?? colord('#046280').darken(0.5).toHex()
+          }
+          borderColor={
+            themeConfig?.graph.paletteSettings.branchesColors.at(0)?.borderColor ??
+            colord('#046280').darken(0.5).toHex()
+          }
+          type={themeConfig?.chat?.chatNode?.availableNodeType ?? ChatNodeType.Filled}
           closeTooltip={() => setOpenTooltip && setOpenTooltip(false)}
         />
       );
     }
     return null;
-  }, [currentReference, setOpenTooltip, dispatch]);
+  }, [
+    currentReference,
+    setOpenTooltip,
+    dispatch,
+    themeConfig?.graph.paletteSettings.branchesColors,
+    themeConfig?.chat?.chatNode?.availableNodeType,
+  ]);
 
   const slides = useMemo(
     () =>
       references.map((reference, index) => {
         const key = isDocsReference(reference) ? reference.doc_name : reference.id;
-        const slide = getSlideContent(reference, mindmapFolder, deviceType, isFullscreen);
+        const slide = getSlideContent(reference, mindmapFolder, isFullscreen, availableHeight);
         if (!slide) return null;
         const { content, contentType } = slide;
         return (
@@ -189,6 +213,7 @@ export const useReferenceSlider = ({
                   }
                   dispatch(MindmapActions.setFullscreenReferences(references));
                   dispatch(MindmapActions.setFullscreenInitialSlide(index));
+                  dispatch(MindmapActions.setActiveFullscreenReferenceId(referenceId ?? ''));
                 }
               }}
             >
@@ -197,7 +222,7 @@ export const useReferenceSlider = ({
           </div>
         );
       }),
-    [references, mindmapFolder, isFullscreen, setOpenTooltip, dispatch],
+    [references, mindmapFolder, isFullscreen, setOpenTooltip, dispatch, referenceId, availableHeight],
   );
 
   const prev = useCallback(() => {

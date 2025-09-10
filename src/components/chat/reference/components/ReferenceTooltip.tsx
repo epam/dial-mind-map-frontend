@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import Slider from 'react-slick';
 
 import { useTooltipContext } from '@/components/builder/common/Tooltip';
@@ -12,30 +12,62 @@ import { DocsReference, NodeReference } from '@/types/graph';
 interface ReferenceTooltipProps {
   references: Array<DocsReference | NodeReference>;
   mindmapFolder: string;
+  referenceId?: string;
+  badgeRef?: React.RefObject<HTMLSpanElement>;
 }
 
-export const ReferenceTooltip: React.FC<ReferenceTooltipProps> = ({ references, mindmapFolder }) => {
+export const ReferenceTooltip: React.FC<ReferenceTooltipProps> = ({
+  references,
+  mindmapFolder,
+  referenceId,
+  badgeRef,
+}) => {
   const dispatch = useChatDispatch();
   const isMapHidden = useChatSelector(ChatUISelectors.selectIsMapHidden);
 
-  const { setOpen } = useTooltipContext();
+  const { setOpen, availableHeight } = useTooltipContext();
 
   const toggleDisplayMode = useCallback(
     (initialSlideNumber: number) => {
       dispatch(MindmapActions.setFullscreenReferences(references));
       dispatch(MindmapActions.setFullscreenInitialSlide(initialSlideNumber));
+      dispatch(MindmapActions.setActiveFullscreenReferenceId(referenceId ?? ''));
       if (isMapHidden) {
         dispatch(ChatUIActions.setIsMapHidden(false));
       }
     },
-    [dispatch, references, isMapHidden],
+    [dispatch, references, isMapHidden, referenceId],
   );
 
   const { Title, current, prev, next, sliderRef, slides, settings } = useReferenceSlider({
     setOpenTooltip: setOpen,
     references,
     mindmapFolder,
+    referenceId,
+    availableHeight,
   });
+
+  useEffect(() => {
+    if (!badgeRef?.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) {
+          setOpen(false);
+        }
+      },
+      {
+        root: null,
+        threshold: 0,
+      },
+    );
+
+    observer.observe(badgeRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [setOpen, badgeRef]);
 
   return (
     <div className="w-full">

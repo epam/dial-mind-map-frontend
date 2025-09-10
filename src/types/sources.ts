@@ -1,3 +1,5 @@
+import { GenerateParams } from './generate';
+
 export interface Source {
   url: string;
   id?: string;
@@ -47,6 +49,7 @@ export interface Sources {
   names: SourcesNames;
   generation_status: GenerationStatus;
   generated: boolean;
+  params?: GenerateParams;
 }
 
 export enum SourceStatus {

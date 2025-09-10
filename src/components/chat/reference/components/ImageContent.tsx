@@ -5,19 +5,24 @@ import classNames from 'classnames';
 import { useEffect, useRef } from 'react';
 import { ReactZoomPanPinchContentRef, TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
 
-import { DeviceType } from '@/store/chat/ui/ui.reducers';
 import { DocsReference } from '@/types/graph';
 import { constructPath } from '@/utils/app/file';
+
+const TOOLTIP_HEADER_HEIGHT = 32; // Height of the tooltip header in pixels
+const TOOLTIP_PADDING = 22; // Padding around the tooltip content in pixels
+
+const TOOLTIP_RESERVED_HEIGHT = TOOLTIP_HEADER_HEIGHT + TOOLTIP_PADDING;
 
 export const ImageContent = ({
   reference,
   folderPath,
   isFullscreenReference,
+  availableHeight,
 }: {
   reference: DocsReference;
   folderPath: string;
   isFullscreenReference?: boolean;
-  deviceType: DeviceType;
+  availableHeight?: number | null;
 }) => {
   const { content, doc_name } = reference;
   const imageSrc = `/${constructPath('api', folderPath, content)}`;
@@ -63,7 +68,15 @@ export const ImageContent = ({
           <img
             src={imageSrc}
             alt={doc_name}
-            className={classNames('w-full max-h-full object-contain', !isFullscreenReference && 'h-[300px]')}
+            style={
+              !isFullscreenReference && availableHeight
+                ? {
+                    maxHeight: availableHeight > 300 ? '300px' : `${availableHeight - TOOLTIP_RESERVED_HEIGHT}px`,
+                    height: availableHeight > 300 ? '300px' : `${availableHeight - TOOLTIP_RESERVED_HEIGHT}px`,
+                  }
+                : {}
+            }
+            className={classNames('w-full object-contain', 'max-h-full')}
           />
         </TransformComponent>
       </TransformWrapper>

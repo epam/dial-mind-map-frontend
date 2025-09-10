@@ -13,7 +13,7 @@ export const DesktopChat = () => {
   return (
     <div
       className={classNames([
-        'border-primary bg-layer-1 rounded-[10px] border-2 h-full flex flex-col relative w-full xl:h-full xl:w-1/3',
+        'border-primary bg-layer-1 rounded-[10px] border-2 h-full flex flex-col relative w-full xl:h-full xl:w-1/3 chat-container',
         isMapHidden && 'xl:w-full max-w-[800px]',
       ])}
       data-testid="desktop-chat"

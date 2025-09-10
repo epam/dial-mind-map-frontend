@@ -3,7 +3,6 @@ import { catchError, concat, filter, from, mergeMap, of, throwError } from 'rxjs
 import { MindmapUrlHeaderName } from '@/constants/http';
 import { GenerationStatus } from '@/types/sources';
 import { BuilderRootEpic } from '@/types/store';
-import { generateMindmapFolderPath } from '@/utils/app/application';
 
 import { ApplicationSelectors } from '../../application/application.reducer';
 import { GraphActions } from '../../graph/graph.reducers';
@@ -16,9 +15,9 @@ export const regenerateMindmapEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
     filter(BuilderActions.regenerateMindmap.match),
     mergeMap(() => {
-      const application = ApplicationSelectors.selectApplication(state$.value);
       const applicationName = ApplicationSelectors.selectApplicationName(state$.value);
-      const mindmapFolder = generateMindmapFolderPath(application);
+
+      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
       const previousGenerationStatus = BuilderSelectors.selectGenerationStatus(state$.value);
 
       return concat(

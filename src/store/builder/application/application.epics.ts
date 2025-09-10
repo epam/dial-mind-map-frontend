@@ -1,20 +1,21 @@
 import { UnknownAction } from '@reduxjs/toolkit';
 import { combineEpics } from 'redux-observable';
-import { catchError, filter, from, map, mergeMap, of, switchMap, tap } from 'rxjs';
+import { catchError, concat, filter, forkJoin, from, map, mergeMap, of, switchMap, take, tap } from 'rxjs';
 import { fromFetch } from 'rxjs/fetch';
 
 import { Application } from '@/types/application';
 import { BuilderRootEpic } from '@/types/store';
 import { generateMindmapFolderPath } from '@/utils/app/application';
 
-import { BuilderActions } from '../builder/builder.reducers';
+import { AppearanceActions } from '../appearance/appearance.reducers';
 import { HistoryActions } from '../history/history.reducers';
+import { SourcesActions } from '../sources/sources.reducers';
 import { UISelectors } from '../ui/ui.reducers';
 import { checkForUnauthorized } from '../utils/checkForUnauthorized';
 import { globalCatchUnauthorized } from '../utils/globalCatchUnauthorized';
 import { ApplicationActions, ApplicationSelectors } from './application.reducer';
 
-const fetchApplicationEpic: BuilderRootEpic = action$ =>
+const fetchApplicationEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
     filter(ApplicationActions.fetchApplicationStart.match),
     switchMap(({ payload: applicationId }) =>
@@ -26,22 +27,32 @@ const fetchApplicationEpic: BuilderRootEpic = action$ =>
           }
           return response.json();
         }),
-        mergeMap((data: Application) => {
-          const actions: UnknownAction[] = [
+        switchMap((data: Application) => {
+          const theme = UISelectors.selectTheme(state$.value);
+          const baseActions: UnknownAction[] = [
             ApplicationActions.fetchApplicationSuccess(data),
-            BuilderActions.initSources({ name: data.name ?? data.application ?? '' }),
+            SourcesActions.initSources({ name: data.name ?? data.application ?? '' }),
             HistoryActions.fetchUndoRedo(),
+            AppearanceActions.initTheme({ theme }),
           ];
-
-          // If mindmap_folder is not set, trigger an update
           if (!data.application_properties?.mindmap_folder) {
-            actions.push(ApplicationActions.updateApplication({ name: data.name ?? '' }));
+            baseActions.push(ApplicationActions.updateApplication({ name: data.name ?? '' }));
           }
 
-          return from(actions);
+          return concat(
+            from(baseActions),
+            forkJoin([
+              action$.pipe(filter(AppearanceActions.fetchThemeConfigFinished.match), take(1)),
+              data.application_properties?.mindmap_folder
+                ? of(true)
+                : action$.pipe(filter(ApplicationActions.updateApplicationSuccess.match), take(1)),
+            ]).pipe(map(() => ApplicationActions.setIsApplicationReady(true))),
+          );
         }),
         globalCatchUnauthorized(),
-        catchError((error: Error) => of(ApplicationActions.fetchApplicationFailure(error.message))),
+        catchError((error: Error) =>
+          of(ApplicationActions.fetchApplicationFailure(error.message), ApplicationActions.setIsApplicationReady(true)),
+        ),
       ),
     ),
   );

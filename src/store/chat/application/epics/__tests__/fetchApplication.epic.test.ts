@@ -3,6 +3,8 @@ import { Subject } from 'rxjs';
 import { fromFetch } from 'rxjs/fetch';
 import { TestScheduler } from 'rxjs/testing';
 
+import { ChatUIActions } from '@/store/chat/ui/ui.reducers';
+
 import { ApplicationActions } from '../../application.reducer';
 import { fetchApplicationEpic } from '../fetchApplication.epic';
 
@@ -49,21 +51,26 @@ describe('fetchApplicationEpic', () => {
     });
   });
 
-  it('should dispatch fetchApplicationFailure on fetch error', () => {
+  it('should dispatch setIsOffline(true) and fetchApplicationFailure on fetch error', () => {
     testScheduler.run(({ hot, cold, expectObservable }) => {
       const applicationId = '123';
       const errorMessage = 'Failed to fetch';
+      const error = new Error(errorMessage);
 
-      mockedFromFetch.mockReturnValueOnce(cold('--#', {}, new Error(errorMessage)));
+      mockedFromFetch.mockReturnValueOnce(cold('--#', {}, error));
 
-      const action$ = hot('-a', { a: ApplicationActions.fetchApplicationStart(applicationId) });
-      const state$ = new StateObservable(new Subject(), {});
+      const action$ = hot('-a-----', { a: ApplicationActions.fetchApplicationStart(applicationId) });
+      const state$ = new StateObservable(new Subject(), {} as any);
 
       const output$ = fetchApplicationEpic(action$, state$);
 
-      expectObservable(output$).toBe('---b', {
-        b: ApplicationActions.fetchApplicationFailure(errorMessage),
-      });
+      const expectedMarble = '---(bc)';
+      const expectedValues = {
+        b: ChatUIActions.setIsOffline(true),
+        c: ApplicationActions.fetchApplicationFailure(errorMessage),
+      };
+
+      expectObservable(output$).toBe(expectedMarble, expectedValues);
     });
   });
 });

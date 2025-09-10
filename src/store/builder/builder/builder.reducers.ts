@@ -1,15 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+import { GenerateParams, GenerationType } from '@/types/generate';
 import { Edge, Element, Graph, Node, PositionedElement } from '@/types/graph';
-import {
-  CreateSource,
-  CreateSourceVersion,
-  GenerationStatus,
-  RecreateSourceVersion,
-  Source,
-  SourcesNames,
-} from '@/types/sources';
+import { Model } from '@/types/model';
+import { GenerationStatus, Source } from '@/types/sources';
 
 import * as BuilderSelectors from './builder.selectors';
 import { BuilderState, GeneratingStatus } from './builder.types';
@@ -17,19 +12,25 @@ import { BuilderState, GeneratingStatus } from './builder.types';
 export { BuilderSelectors };
 
 export const BuilderInitialState: BuilderState = {
-  sources: [],
-  sourcesNames: {},
   generatingStatus: {
     title: 'Graph generation',
   },
   inProgressRequestsCounter: 0,
   etag: null,
   generationComplete: false,
-  isSourcesLoading: false,
   isGraphLoading: false,
   generationStatus: null,
   isGenerated: false,
   isMindmapSubscribeActive: false,
+  generationType: GenerationType.Universal,
+  models: [],
+  isModelsLoading: false,
+  currentModelId: null,
+  prompt: '',
+  defaultSimpleModeModel: '',
+  defaultSimpleModePrompt: '',
+  isMindmapExportInProgress: false,
+  isMindmapImportInProgress: false,
 };
 
 export const builderSlice = createSlice({
@@ -59,23 +60,6 @@ export const builderSlice = createSlice({
     fetchGraphFailure: (state, { payload }: PayloadAction<string>) => {
       state.isGraphLoading = false;
     },
-    initSources: (state, { payload }: PayloadAction<{ name: string }>) => {
-      state.isSourcesLoading = true;
-    },
-    fetchSources: state => {},
-    fetchSourcesSuccess: (state, action: PayloadAction<{ sources: Source[]; isMmExist: boolean }>) => {
-      state.sources = action.payload.sources;
-      state.isSourcesLoading = false;
-    },
-    fetchSourcesFailure: (state, { payload }: PayloadAction<string>) => {
-      state.isSourcesLoading = false;
-    },
-    setSources: (state, { payload }: PayloadAction<Source[]>) => {
-      state.sources = payload;
-    },
-    setSourcesNames: (state, { payload }: PayloadAction<SourcesNames>) => {
-      state.sourcesNames = payload;
-    },
     setGeneratingStatus: (state, { payload }: PayloadAction<GeneratingStatus>) => {
       state.generatingStatus = payload;
     },
@@ -95,19 +79,10 @@ export const builderSlice = createSlice({
     deleteEdge: (state, { payload }: PayloadAction<string>) => state,
     createEdge: (state, { payload }: PayloadAction<Edge>) => state,
     updateEdge: (state, { payload }: PayloadAction<Edge>) => state,
-    deleteSource: (state, { payload }: PayloadAction<Source>) => state,
-    createSource: (
+    updateNodesPositions: (
       state,
-      { payload }: PayloadAction<Omit<CreateSource, 'sourceId' | 'versionId'> & { name: string }>,
+      { payload }: PayloadAction<{ positionedNodes: PositionedElement<Node>[]; historySkip?: boolean }>,
     ) => state,
-    createSourceVersion: (state, { payload }: PayloadAction<CreateSourceVersion>) => state,
-    recreateSourceVersion: (state, { payload }: PayloadAction<RecreateSourceVersion>) => state,
-    changeSourceName: (state, { payload }: PayloadAction<{ sourceId: string; name: string }>) => state,
-    updateSource: (state, { payload }: PayloadAction<Source>) => state,
-    setActiveSourceVersion: (state, { payload }: PayloadAction<{ sourceId: string; versionId: number }>) => state,
-    downloadSource: (state, { payload }: PayloadAction<{ sourceId: string; versionId: number; name?: string }>) =>
-      state,
-    updateNodesPositions: (state, { payload }: PayloadAction<PositionedElement<Node>[]>) => state,
     setNodeAsRoot: (state, { payload }: PayloadAction<string>) => state,
     generateEdges: state => state,
     deleteGeneratedEdges: state => state,
@@ -121,16 +96,57 @@ export const builderSlice = createSlice({
     undo: state => state,
     redoDocs: state => state,
     undoDocs: state => state,
-    setIsSourcesLoading: (state, { payload }: PayloadAction<boolean>) => {
-      state.isSourcesLoading = payload;
-    },
     setGenerationStatus: (state, { payload }: PayloadAction<GenerationStatus>) => {
       state.generationStatus = payload;
     },
     generationStatusSubscribe: state => state,
-    sourceStatusSubscribe: (state, { payload }: PayloadAction<{ sourceId: string; versionId: number }>) => state,
     setIsGenerated: (state, { payload }: PayloadAction<boolean>) => {
       state.isGenerated = payload;
+    },
+    setGenerationType: (state, { payload }: PayloadAction<GenerationType>) => {
+      state.generationType = payload;
+    },
+    setModels: (state, { payload }: PayloadAction<Model[]>) => {
+      state.models = payload;
+    },
+    fetchModels: state => {
+      state.isModelsLoading = true;
+    },
+    setCurrentModel: (state, { payload }: PayloadAction<string | null>) => {
+      state.currentModelId = payload;
+    },
+    setPrompt: (state, { payload }: PayloadAction<string>) => {
+      state.prompt = payload;
+    },
+    setIsModelsLoading: (state, { payload }: PayloadAction<boolean>) => {
+      state.isModelsLoading = payload;
+    },
+    fetchGenerateParams: state => state,
+    setGenerateParams: (state, { payload }: PayloadAction<GenerateParams>) => {
+      state.prompt = payload.prompt || null;
+      state.currentModelId = payload.model || null;
+      state.generationType = payload.type || GenerationType.Universal;
+    },
+    updateGenerateParams: (state, { payload }: PayloadAction<GenerateParams>) => state,
+
+    exportMindmap: state => {
+      state.isMindmapExportInProgress = true;
+    },
+    exportMindmapSuccess: state => {
+      state.isMindmapExportInProgress = false;
+    },
+    exportMindmapFailure: state => {
+      state.isMindmapExportInProgress = false;
+    },
+
+    importMindmap: (state, { payload }: PayloadAction<{ file: File }>) => {
+      state.isMindmapImportInProgress = true;
+    },
+    importMindmapSuccess: state => {
+      state.isMindmapImportInProgress = false;
+    },
+    importMindmapFailure: (state, { payload }: PayloadAction<string>) => {
+      state.isMindmapImportInProgress = false;
     },
   },
 });

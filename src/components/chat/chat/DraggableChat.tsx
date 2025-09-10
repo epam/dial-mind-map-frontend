@@ -49,7 +49,6 @@ export const DraggableChat = ({ parentRef }: { parentRef: RefObject<HTMLDivEleme
 
   const bind = useDrag(
     ({ down, movement: [mx, my], memo = size, event }) => {
-      console.log('🚀 ~ DraggableChat ~ down:', down); // debugging
       event.preventDefault();
 
       if (!parentRef.current) return memo;
@@ -88,7 +87,7 @@ export const DraggableChat = ({ parentRef }: { parentRef: RefObject<HTMLDivEleme
   return (
     <animated.div
       className={classNames([
-        'draggable-chat border-primary bg-layer-1 rounded-[10px] border-2 h-full flex flex-col pt-4 absolute w-full bottom-0 z-50',
+        'draggable-chat border-primary bg-layer-1 rounded-[10px] border-2 h-full flex flex-col pt-4 absolute w-full bottom-0 z-50 chat-container',
       ])}
       style={isHorizontalMovement ? { width: animatedSize } : { height: animatedSize, minHeight: '113px' }}
       data-testid="draggable-chat"

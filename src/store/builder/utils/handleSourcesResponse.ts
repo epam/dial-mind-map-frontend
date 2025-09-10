@@ -6,6 +6,7 @@ import { GenerationStatus, Source, Sources, SourceStatus } from '@/types/sources
 import { adjustSourcesStatuses } from '@/utils/app/sources';
 
 import { BuilderActions } from '../builder/builder.reducers';
+import { SourcesActions } from '../sources/sources.reducers';
 
 export const handleSourcesResponse = (
   response: Sources,
@@ -23,21 +24,24 @@ export const handleSourcesResponse = (
   const generationStatus = response.generation_status;
 
   const actions: UnknownAction[] = [
-    BuilderActions.fetchSourcesSuccess({
+    SourcesActions.fetchSourcesSuccess({
       sources,
-      isMmExist: true,
     }),
-    BuilderActions.setSourcesNames(response.names),
+    SourcesActions.setSourcesNames(response.names),
     BuilderActions.setGenerationStatus(generationStatus),
     BuilderActions.setIsGenerated(response.generated),
   ];
 
   const sourceStatusSubscription = sources
-    .filter(s => s.status === SourceStatus.INPROGRESS && s.id && s.version)
-    .map(s => BuilderActions.sourceStatusSubscribe({ sourceId: s.id!, versionId: s.version! }));
+    .filter(source => source.status === SourceStatus.INPROGRESS && source.id && source.version)
+    .map(source => SourcesActions.sourceStatusSubscribe({ sourceId: source.id!, versionId: source.version! }));
 
   if (sourceStatusSubscription.length) {
-    actions.push(...actions);
+    actions.push(...sourceStatusSubscription);
+  }
+
+  if (prevGenStatus !== GenerationStatus.IN_PROGRESS && generationStatus === GenerationStatus.IN_PROGRESS) {
+    actions.push(BuilderActions.generationStatusSubscribe());
   }
 
   return from([...actions]);

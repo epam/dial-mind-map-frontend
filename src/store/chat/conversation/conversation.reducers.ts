@@ -52,13 +52,17 @@ export const conversationSlice = createSlice({
       state.isMessageSending = false;
     },
     createConversation: (state, { payload }: PayloadAction<Conversation>) => state,
-    saveConversation: (state, { payload }: PayloadAction<Conversation>) => state,
+    saveConversation: (
+      state,
+      { payload }: PayloadAction<{ conversation: Conversation; needToUpdateInBucket?: boolean }>,
+    ) => state,
     saveConversationSuccess: (state, { payload }: PayloadAction<{ conversation: Conversation }>) => state,
     updateConversation: (
       state,
       action: PayloadAction<{
         values: Partial<Conversation>;
-        isInitialization?: boolean;
+        isInitialization?: boolean | null;
+        needToUpdateInBucket?: boolean;
       }>,
     ) => state,
     updateConversationSuccess: (state, { payload }: PayloadAction<{ conversation: Partial<Conversation> }>) => {
@@ -91,7 +95,8 @@ export const conversationSlice = createSlice({
       state,
       action: PayloadAction<{
         messages: Message[];
-        isInitialization?: boolean;
+        isInitialization?: boolean | null;
+        needToUpdateInBucket?: boolean;
       }>,
     ) => state,
     sendMessages: (

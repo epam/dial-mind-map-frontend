@@ -30,3 +30,13 @@ export const combineEntities = <T extends Entity>(entities1: T[], entities2: T[]
 
   return values(mergedEntities);
 };
+
+export const dispatchMouseLeaveEvent = (eventTarget: EventTarget | null) => {
+  const mouseLeaveEvent = new MouseEvent('mouseleave', {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+  });
+
+  eventTarget?.dispatchEvent(mouseLeaveEvent);
+};

@@ -38,11 +38,11 @@ export const MobileSettings = () => {
   ]);
 
   return (
-    <div className="size-11">
+    <>
       <button
         disabled={!hasAppProperties}
         className={classNames([
-          'size-full flex justify-center items-center bg-layer-3 rounded text-secondary hover:text-accent-primary',
+          'mobile-menu-toggle-button size-11 flex justify-center items-center bg-layer-3 rounded text-secondary hover:text-accent-primary',
           !hasAppProperties && 'pointer-events-none',
         ])}
         ref={refs.setReference}
@@ -61,11 +61,11 @@ export const MobileSettings = () => {
               left: x != null ? x : '',
             }}
             {...getFloatingProps()}
-            className="flex flex-col rounded border border-primary bg-layer-0 text-primary"
+            className="mobile-menu flex flex-col rounded border border-primary bg-layer-0 text-primary"
           >
             <LevelSwitcher classes="p-3" onChange={() => setIsOpen(false)} />
             <button
-              className="group flex items-center gap-1 border-t border-primary p-3 text-sm hover:text-accent-primary disabled:cursor-not-allowed disabled:text-secondary"
+              className="history-reset-button group flex items-center gap-1 border-t border-primary p-3 text-sm hover:text-accent-primary disabled:cursor-not-allowed disabled:text-secondary"
               onClick={() => {
                 dispatch(ChatUIActions.reset());
                 setIsOpen(false);
@@ -84,6 +84,6 @@ export const MobileSettings = () => {
           </div>
         )}
       </FloatingPortal>
-    </div>
+    </>
   );
 };

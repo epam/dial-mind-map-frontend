@@ -1,6 +1,6 @@
 import { CaptchaToken, Entity } from './common';
 import { MIMEType } from './files';
-import { ColoredNode, Edge, Element, Node, Reference } from './graph';
+import { ColoredNode, Edge, Element, GraphElement, Node, Reference } from './graph';
 
 export interface Attachment {
   index?: number;
@@ -67,6 +67,13 @@ export interface ChatBody extends CaptchaToken {
   custom_fields?: CustomFields;
 }
 
+export interface Playback {
+  isPlayback?: boolean;
+  messagesStack: Message[];
+  activePlaybackIndex: number;
+  customViewState: ViewState;
+}
+
 export interface Conversation extends ConversationInfo {
   messages: Message[];
   prompt: string;
@@ -78,12 +85,33 @@ export interface Conversation extends ConversationInfo {
 
   isMessageStreaming?: boolean;
   isApplicationPreviewConversation?: boolean;
+
+  playback?: Playback;
+}
+
+export enum PlaybackActionType {
+  Init = 'init',
+  UpdateConversation = 'updateConversation',
+  ChangeFocusNode = 'changeFocusNode',
+  FillInput = 'fillInput',
+  ChangeDepth = 'changeDepth',
+}
+
+export interface PlaybackAction {
+  type: PlaybackActionType;
+  mindmap: {
+    elements: Element<GraphElement>[];
+    focusNodeId: string;
+    visitedNodes: Record<string, string>;
+    depth: 1 | 2;
+  };
 }
 
 export interface ViewState {
   focusNodeId: string;
   visitedNodeIds: Record<string, string>;
   customElements: CustomElements;
+  playbackActions?: PlaybackAction[];
 }
 
 export interface CustomElements {

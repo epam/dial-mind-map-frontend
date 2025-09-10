@@ -1,9 +1,21 @@
-import { AI_ROBOT_ICON_NAME } from '@/constants/app';
-import { getColorizedIconPath } from '@/utils/app/graph/icons';
+import { NodeSingular, StylesheetStyle } from 'cytoscape';
 
-import { getIcon } from './utils/icons/icons';
+import {
+  ARROW_BACK_ICON_NAME,
+  DefaultEdgeWidth,
+  DefaultGraphNodeBorderWidth,
+  DefaultGraphNodePadding,
+  DefaultRootNodeFontSize,
+  DefaultVisitedNodeBgImageOpacity,
+} from '@/constants/app';
+import { DefaultCytoscapeLayoutSettings } from '@/constants/appearances/defaultConfig';
+import { CytoscapeLayoutSettings, GraphConfig, GraphImgResourceKey } from '@/types/customization';
+import { SystemNodeDataKeys } from '@/types/graph';
+import { getColorizedIconPath, getColorizedStorageIconPath } from '@/utils/app/graph/icons';
+
+import { getSystemImage, isSystemImg } from './utils/icons/icons';
 import { getNeonBackground } from './utils/styles/neonBackground';
-import { getHeight, getWidth } from './utils/styles/styles';
+import { getHeight, getSingleImageBgOpacity, getWidth } from './utils/styles/styles';
 
 export const AnimationDurationMs = 700;
 export const FitDurationMs = 200;
@@ -13,50 +25,16 @@ export const WidthAdjustmentDurationMs = 100;
 export const DefaultGraphDepth = 2;
 export const MaxVisibleNodesCount = 19;
 export const ThinEdgesCountThreshold = 5;
-export const NormalEdgeWidth = 2.5;
-export const ThinEdgeWidth = 1.5;
 
-export const ExtraWidthForNodesWithImages = 10;
+const IconSize = 10;
+const IconNodeTextMarginX = 8;
+export const ExtraWidthForNodesWithImages = IconSize + IconNodeTextMarginX / 2;
 export const ExtraFontWhileHovering = 1;
-
-export const RootNeighborsFontSize = '10px';
-export const LeafsFontSize = '8px';
 
 export const TabletWidthPx = 768;
 
-// numbers of colors from markup
-// 9, 5, 3, 7, 8,
-// 4, 6, 2, 1,
-export const BranchColors = [
-  '#8C1756',
-  '#046280',
-  '#41712B',
-  '#422471',
-  '#6E2573',
-  '#136758',
-  '#233B78',
-  '#9E531D',
-  '#932A2A',
-] as const;
-
-export type BranchColor = (typeof BranchColors)[number];
-
-export const BranchColorsMap: Record<BranchColor, string> = {
-  '#8C1756': '#58133B',
-  '#046280': '#064054',
-  '#41712B': '#2A4721',
-  '#422471': '#2B1B4B',
-  '#6E2573': '#461B4D',
-  '#136758': '#0F433C',
-  '#233B78': '#192950',
-  '#9E531D': '#5B3318',
-  '#932A2A': '#5C1E21',
-};
-
-export const DefaultEdgeColor = '#333942';
 export const FocusNodeColor = '#DDE1E6';
 export const FocusNodeTextColor = '#090D13';
-export const FocusNodeBorderColor = '#F3F4F6';
 export const NodeTextColor = '#F3F4F6';
 export const NewNodeColor = '#02050A';
 export const GraphPadding = 10;
@@ -80,73 +58,228 @@ export const InitLayoutOptions = {
   numIter: 10000,
 };
 
-export const SecondLayoutOptions = {
-  name: 'fcose',
-  randomize: false,
-  animationDuration: AnimationDurationMs,
+export const getSecondLayoutOptions = (settings?: CytoscapeLayoutSettings) => {
+  const defaultSettings = {
+    name: 'fcose',
+    randomize: false,
+    animationDuration: AnimationDurationMs,
+    ...DefaultCytoscapeLayoutSettings,
+  };
 
-  // compact graph
-  nodeRepulsion: 10000,
-  idealEdgeLength: 30,
-  edgeElasticity: 0.8,
+  if (!settings) return defaultSettings;
+
+  return {
+    ...defaultSettings,
+    ...settings,
+  };
 };
+
 const NeonBoundsExpansion = 30;
-const IconXOffset = 6;
 
 // export const NeonPadding = 20;
 // const IconXNeonOffset = 15;
 
-export const getCytoscapeStyles = (mindmapFolder: string): cytoscape.StylesheetStyle[] => {
+interface StyleContext {
+  mindmapFolder: string;
+  mindmapAppName: string;
+  theme: string;
+  config?: GraphConfig;
+  fontFamily?: string;
+  robotStorageIcon?: string;
+  arrowBackStorageIcon?: string;
+  padding: string | number;
+  useNodeIconAsBgImage: boolean;
+  maskImg?: string;
+  defaultBgImg?: string;
+}
+
+export const getCytoscapeStyles = (
+  mindmapFolder: string,
+  mindmapAppName: string,
+  theme: string,
+  config?: GraphConfig,
+  fontFamily?: string,
+  robotStorageIcon?: string,
+  arrowBackStorageIcon?: string,
+): cytoscape.StylesheetStyle[] => {
+  const padding = config?.cytoscapeStyles.node?.base?.padding ?? DefaultGraphNodePadding;
+  const useNodeIconAsBgImage = config?.useNodeIconAsBgImage ?? false;
+  const maskImg = config?.images?.[GraphImgResourceKey.BorderImg];
+  const defaultBgImg = config?.images?.[GraphImgResourceKey.DefaultBgImg];
+
+  const context: StyleContext = {
+    mindmapFolder,
+    mindmapAppName,
+    theme,
+    config,
+    fontFamily,
+    robotStorageIcon,
+    arrowBackStorageIcon,
+    padding,
+    useNodeIconAsBgImage,
+    maskImg,
+    defaultBgImg,
+  };
+
+  const styles: StylesheetStyle[] = [buildBaseNodeStyle(context)];
+
+  if (useNodeIconAsBgImage) {
+    styles.push(buildUnimagedStyles(context));
+  }
+
+  styles.push(
+    ...buildImagedStyles(context),
+    ...buildNeonedStyles(context),
+    ...buildVisitedAndPreviousNodeStyles(context),
+  );
+
+  styles.push(buildEdgeStyle(context), buildActiveNodeStyle(), buildCompoundNodeStyle());
+
+  return styles;
+};
+
+function buildBaseNodeStyle(ctx: StyleContext): cytoscape.StylesheetStyle {
+  return {
+    selector: 'node',
+    style: {
+      shape: 'round-rectangle',
+      label: 'data(label)',
+      'text-valign': 'center',
+      'text-halign': 'center',
+      color: '#F3F4F6',
+      width: getWidth,
+      height: 'label',
+      'font-family': ctx.fontFamily,
+      'font-size': DefaultRootNodeFontSize,
+      'line-height': 1.3,
+      'border-width': DefaultGraphNodeBorderWidth,
+      'border-color': 'transparent',
+      padding: ctx.padding,
+      ...(!ctx.useNodeIconAsBgImage && { height: 'label' }),
+      ...ctx.config?.cytoscapeStyles.node?.base,
+    } as cytoscape.Css.Node,
+  };
+}
+
+function buildImagedStyles(ctx: StyleContext): cytoscape.StylesheetStyle[] {
   return [
     {
-      selector: 'node',
+      selector: 'node[?icon][!neon]',
       style: {
-        shape: 'round-rectangle',
-        label: 'data(label)',
-        'text-valign': 'center',
-        'text-halign': 'center',
-        color: '#F3F4F6',
-        // 'font-family': 'var(--font-montserrat)',
-        'font-size': '7px',
-        'line-height': 1.3,
-        'border-width': 0.5,
-        'border-color': 'transparent',
-        padding: '8px',
-        height: 'label',
-        width: getWidth,
-        'text-margin-y': 0.5,
+        'background-image': node => {
+          const iconPath = node.data('icon');
+          const color = node.data(SystemNodeDataKeys.TextColor);
+
+          let icon;
+          const isSystemIcon = isSystemImg(iconPath);
+          if (ctx.useNodeIconAsBgImage && isSystemIcon) {
+            if (ctx.defaultBgImg) {
+              icon = getColorizedStorageIconPath(
+                ctx.defaultBgImg,
+                color,
+                ctx.mindmapAppName,
+                ctx.theme,
+                ctx.mindmapFolder,
+              );
+            }
+          } else if (isSystemIcon) {
+            icon = getSystemImage({
+              img: iconPath,
+              customImg: ctx.robotStorageIcon,
+              color,
+              mindmapAppName: ctx.mindmapAppName,
+              mindmapFolder: ctx.mindmapFolder,
+              theme: ctx.theme,
+            });
+          } else {
+            icon = getColorizedIconPath(iconPath, color, ctx.mindmapFolder);
+          }
+
+          if (ctx.useNodeIconAsBgImage && ctx.maskImg) {
+            const maskImg = getColorizedStorageIconPath(
+              ctx.maskImg,
+              color,
+              ctx.mindmapAppName,
+              ctx.theme,
+              ctx.mindmapFolder,
+            );
+
+            return [icon ?? 'none', maskImg ?? 'none'];
+          } else {
+            return [icon ?? 'none'];
+          }
+        },
+        ...(ctx.useNodeIconAsBgImage
+          ? {
+              // 100.5% is a workaround to ensure the border is always slightly larger than the main image, preventing the floating '1px border' issue.
+              'background-width': ['100%', '100.5%'],
+              'background-height': ['100%', '100.5%'],
+              'background-clip': ['node', 'none'],
+              'background-repeat': ['no-repeat', 'no-repeat'],
+              'background-position-x': ['50%', '50%'],
+              'background-position-y': ['50%', '50%'],
+            }
+          : {
+              'text-margin-x': IconNodeTextMarginX,
+              'background-width': IconSize,
+              'background-height': IconSize,
+              'background-position-x': ctx.padding,
+              'background-image-containment': 'over',
+              'background-clip': 'none',
+            }),
       },
     },
+  ];
+}
+
+function buildUnimagedStyles(ctx: StyleContext): cytoscape.StylesheetStyle {
+  return {
+    selector: 'node[!icon]',
+    style: {
+      'background-image': (node: NodeSingular) => {
+        let bgImg;
+        let maskImg;
+        const color = node.data(SystemNodeDataKeys.TextColor);
+
+        if (ctx.defaultBgImg) {
+          bgImg = getColorizedStorageIconPath(
+            ctx.defaultBgImg,
+            color,
+            ctx.mindmapAppName,
+            ctx.theme,
+            ctx.mindmapFolder,
+          );
+        }
+
+        if (ctx.maskImg) {
+          maskImg = getColorizedStorageIconPath(ctx.maskImg, color, ctx.mindmapAppName, ctx.theme, ctx.mindmapFolder);
+        }
+
+        return [bgImg ?? 'none', maskImg ?? 'none'];
+      },
+      // 100.5% is a workaround to ensure the border is always slightly larger than the main image, preventing the floating '1px border' issue.
+      'background-width': ['100%', '100.5%'],
+      'background-height': ['100%', '100.5%'],
+      'background-clip': ['node', 'none'],
+      'background-repeat': ['no-repeat', 'no-repeat'],
+      'background-position-x': ['50%', '50%'],
+      'background-position-y': ['50%', '50%'],
+    },
+  };
+}
+
+function buildNeonedStyles(ctx: StyleContext): cytoscape.StylesheetStyle[] {
+  return [
     {
       selector: 'node[?neon][!icon]',
       style: {
         width: getWidth,
         height: getHeight,
         'background-image': getNeonBackground,
-        'border-width': 0,
         'background-image-opacity': 1,
         'bounds-expansion': NeonBoundsExpansion,
         'background-image-containment': 'over',
         'background-clip': 'none',
-      },
-    },
-    {
-      selector: 'node[?icon][!neon]',
-      style: {
-        padding: '8px',
-        'background-image': node => {
-          const iconName = node.data('icon');
-          const color = node.hasClass('focused') ? FocusNodeTextColor : NodeTextColor;
-          const icon =
-            iconName === AI_ROBOT_ICON_NAME
-              ? getIcon(AI_ROBOT_ICON_NAME, color)
-              : getColorizedIconPath(iconName, color, mindmapFolder);
-          return icon ?? 'none';
-        },
-        'background-width': '11px',
-        'background-height': '11px',
-        'background-position-x': IconXOffset,
-        'text-margin-x': 8,
       },
     },
     {
@@ -156,141 +289,237 @@ export const getCytoscapeStyles = (mindmapFolder: string): cytoscape.StylesheetS
           const neonBackground =
             node.hasClass('previous') || node.hasClass('visited') ? 'none' : getNeonBackground(node);
           const iconPath = node.data('icon');
-          const color = node.hasClass('focused') ? FocusNodeTextColor : NodeTextColor;
-          const icon =
-            iconPath === AI_ROBOT_ICON_NAME
-              ? getIcon(AI_ROBOT_ICON_NAME, color)
-              : (getColorizedIconPath(iconPath, color, mindmapFolder) ?? 'none');
+          const color = node.data(SystemNodeDataKeys.TextColor);
 
-          return [icon, neonBackground];
+          let icon;
+          if (isSystemImg(iconPath)) {
+            icon = getSystemImage({
+              img: iconPath,
+              customImg: ctx.robotStorageIcon,
+              color,
+              mindmapAppName: ctx.mindmapAppName,
+              mindmapFolder: ctx.mindmapFolder,
+              theme: ctx.theme,
+            });
+          } else {
+            icon = getColorizedIconPath(iconPath, color, ctx.mindmapFolder);
+          }
+
+          return [icon ?? 'none', neonBackground];
         },
-        'border-width': 0,
         'background-image-opacity': [1, 1],
-
-        'background-width': ['11px', 'auto'],
-        'background-height': ['11px', 'auto'],
-
-        'background-position-x': [IconXOffset, '50%'],
+        'background-width': [IconSize, 'auto'],
+        'background-height': [IconSize, 'auto'],
+        'background-position-x': [ctx.padding, '50%'],
         'background-position-y': ['50%', '50%'],
-
-        'background-clip': ['node', 'none'],
+        'background-clip': ['none', 'none'],
         'background-image-containment': 'over',
         'bounds-expansion': 50,
-
         'background-opacity': 1,
-
-        'text-margin-x': 8,
+        'text-margin-x': IconNodeTextMarginX,
       },
     },
-
-    {
-      selector: 'node.imaged',
-      style: {
-        padding: '8px',
-        'background-image': node => {
-          const iconName = node.data('icon');
-          return getIcon(iconName, NodeTextColor);
-        },
-        'background-width': '11px',
-        'background-height': '11px',
-        'background-position-x': '6px',
-        // @ts-expect-error margin
-        'text-margin-x': '8px',
-      },
-    },
-    {
-      selector: 'node.focused',
-      style: {
-        'background-image': node => {
-          const iconName = node.data('icon');
-          const color = node.hasClass('focused') ? FocusNodeTextColor : NodeTextColor;
-          const icon =
-            iconName === AI_ROBOT_ICON_NAME
-              ? getIcon(AI_ROBOT_ICON_NAME, color)
-              : getColorizedIconPath(iconName, color, mindmapFolder);
-
-          return icon ?? 'none';
-        },
-      },
-    },
-    {
-      selector: 'node[!neon].visited',
-      style: {
-        'background-image-opacity': 0.6,
-        'border-width': 0,
-      },
-    },
-    {
-      selector: 'node[?neon][!icon].visited',
-      style: {
-        'background-image-opacity': 0,
-        'border-width': 0,
-      },
-    },
-    {
-      selector: 'node[?neon][?icon].visited',
-      style: {
-        'background-image-opacity': [1, 0],
-        'border-width': 0,
-      },
-    },
-    {
-      selector: 'node.visited.focused',
-      style: {
-        'background-image-opacity': 1,
-        'background-opacity': 1,
-      },
-    },
+    { selector: 'node[?neon][!icon].visited', style: { 'background-image-opacity': 0 } },
+    { selector: 'node[?neon][?icon].visited', style: { 'background-image-opacity': [1, 0] } },
     {
       selector: 'node[?neon].previous',
       style: {
-        'background-image': () => {
-          const icon = getIcon('arrow-back', NodeTextColor);
+        'background-image': node => {
+          const icon =
+            getSystemImage({
+              img: ARROW_BACK_ICON_NAME,
+              customImg: ctx.arrowBackStorageIcon,
+              color: node.data(SystemNodeDataKeys.TextColor),
+              mindmapAppName: ctx.mindmapAppName,
+              mindmapFolder: ctx.mindmapFolder,
+              theme: ctx.theme,
+            }) ?? 'none';
           return [icon];
         },
-        'border-width': 0,
-        'background-image-opacity': [0.6],
-        'background-clip': ['node', 'none'],
+        'background-image-opacity': [DefaultVisitedNodeBgImageOpacity],
+        'background-clip': ['none', 'none'],
         'bounds-expansion': NeonBoundsExpansion,
         'background-image-containment': 'over',
-        'background-width': '11px',
-        'background-height': '11px',
-        // @ts-expect-error margin
-        'text-margin-x': '8px',
-      },
-    },
-    {
-      selector: 'node[!neon].previous',
-      style: {
-        'background-image': () => getIcon('arrow-back', NodeTextColor),
-        'background-width': '11px',
-        'background-height': '11px',
-        'background-position-x': IconXOffset,
-        'text-margin-x': 8,
-      },
-    },
-    {
-      selector: 'edge',
-      style: {
-        width: NormalEdgeWidth,
-        'line-color': '#333942',
-      },
-    },
-    {
-      selector: 'node:active',
-      style: {
-        'overlay-opacity': 0,
-      },
-    },
-    {
-      selector: 'node:parent',
-      style: {
-        // show/hide compound node
-        'background-opacity': 0,
-        'border-opacity': 0,
-        label: '',
-        events: 'no',
+        'background-width': IconSize,
+        'background-height': IconSize,
+        'text-margin-x': IconNodeTextMarginX,
       },
     },
   ];
-};
+}
+
+function buildVisitedAndPreviousNodeStyles(ctx: StyleContext): cytoscape.StylesheetStyle[] {
+  return [
+    {
+      selector: 'node[!neon].visited',
+      style: {
+        'background-image-opacity': (node: NodeSingular) => getSingleImageBgOpacity(node, ctx.config?.paletteSettings),
+      },
+    },
+    { selector: 'node.visited.focused', style: { 'background-image-opacity': 1, 'background-opacity': 1 } },
+    {
+      selector: 'node[?icon].previous',
+      style: {
+        'background-image': (node: NodeSingular) => {
+          const color = node.data(SystemNodeDataKeys.TextColor);
+          const iconPath = node.data('icon') as string;
+
+          let icon;
+          const isSystemIcon = isSystemImg(iconPath);
+          if (ctx.useNodeIconAsBgImage && isSystemIcon) {
+            if (ctx.defaultBgImg) {
+              icon = getColorizedStorageIconPath(
+                ctx.defaultBgImg,
+                color,
+                ctx.mindmapAppName,
+                ctx.theme,
+                ctx.mindmapFolder,
+              );
+            }
+          } else if (isSystemIcon) {
+            icon = getSystemImage({
+              img: iconPath,
+              customImg: ctx.robotStorageIcon,
+              color,
+              mindmapAppName: ctx.mindmapAppName,
+              mindmapFolder: ctx.mindmapFolder,
+              theme: ctx.theme,
+            });
+          } else {
+            icon = getColorizedIconPath(iconPath, color, ctx.mindmapFolder);
+          }
+          icon = icon ?? 'none';
+
+          let maskImg;
+          if (ctx.maskImg) {
+            maskImg = getColorizedStorageIconPath(ctx.maskImg, color, ctx.mindmapAppName, ctx.theme, ctx.mindmapFolder);
+          }
+
+          const arrowBackIcon =
+            getSystemImage({
+              img: ARROW_BACK_ICON_NAME,
+              customImg: !ctx.useNodeIconAsBgImage ? ctx.arrowBackStorageIcon : undefined,
+              color,
+              mindmapAppName: ctx.mindmapAppName,
+              mindmapFolder: ctx.mindmapFolder,
+              theme: ctx.theme,
+            }) ?? 'none';
+
+          return ctx.useNodeIconAsBgImage ? [icon, maskImg ?? 'none', arrowBackIcon] : [arrowBackIcon];
+        },
+        ...(ctx.useNodeIconAsBgImage
+          ? {
+              'background-image-opacity': [DefaultVisitedNodeBgImageOpacity, 1, DefaultVisitedNodeBgImageOpacity],
+              // 100.5% is a workaround to ensure the border is always slightly larger than the main image, preventing the floating '1px border' issue.
+              'background-width': ['100%', '100.5%', 'auto'],
+              'background-height': ['100%', '100.5%', 'auto'],
+              'background-clip': ['node', 'none', 'none'],
+              'background-repeat': ['no-repeat', 'no-repeat', 'no-repeat'],
+              'background-position-x': ['50%', '50%', '6px'],
+              'background-position-y': ['50%', '50%', '50%'],
+            }
+          : {
+              'background-position-x': '6px',
+              'background-fit': 'none',
+              'background-image-opacity': (node: NodeSingular) =>
+                getSingleImageBgOpacity(node, ctx.config?.paletteSettings),
+            }),
+      },
+    },
+    {
+      selector: 'node[!icon].previous',
+      style: {
+        'background-image': (node: NodeSingular) => {
+          const color = node.data(SystemNodeDataKeys.TextColor);
+
+          const arrowBackIcon =
+            getSystemImage({
+              img: ARROW_BACK_ICON_NAME,
+              customImg: !ctx.useNodeIconAsBgImage ? ctx.arrowBackStorageIcon : undefined,
+              color,
+              mindmapAppName: ctx.mindmapAppName,
+              mindmapFolder: ctx.mindmapFolder,
+              theme: ctx.theme,
+            }) ?? 'none';
+
+          if (!ctx.useNodeIconAsBgImage) {
+            return [arrowBackIcon];
+          }
+
+          let bgImg;
+          let maskImg;
+
+          if (ctx.defaultBgImg) {
+            bgImg = getColorizedStorageIconPath(
+              ctx.defaultBgImg,
+              color,
+              ctx.mindmapAppName,
+              ctx.theme,
+              ctx.mindmapFolder,
+            );
+          }
+
+          if (ctx.maskImg) {
+            maskImg = getColorizedStorageIconPath(ctx.maskImg, color, ctx.mindmapAppName, ctx.theme, ctx.mindmapFolder);
+          }
+
+          return [bgImg ?? 'none', maskImg ?? 'none', arrowBackIcon];
+        },
+        ...(ctx.useNodeIconAsBgImage
+          ? {
+              'background-image-opacity': [DefaultVisitedNodeBgImageOpacity, 1, DefaultVisitedNodeBgImageOpacity],
+              // 100.5% is a workaround to ensure the border is always slightly larger than the main image, preventing the floating '1px border' issue.
+              'background-width': ['100%', '100.5%', 'auto'],
+              'background-height': ['100%', '100.5%', 'auto'],
+              'background-clip': ['node', 'none', 'none'],
+              'background-repeat': ['no-repeat', 'no-repeat', 'no-repeat'],
+              'background-position-x': ['50%', '50%', '6px'],
+              'background-position-y': ['50%', '50%', '50%'],
+            }
+          : {
+              'background-width': IconSize,
+              'background-height': IconSize,
+              'background-image-containment': 'over',
+              'background-clip': 'none',
+              'text-margin-x': IconNodeTextMarginX,
+              'background-position-x': ctx.padding,
+              'background-image-opacity': (node: NodeSingular) =>
+                getSingleImageBgOpacity(node, ctx.config?.paletteSettings),
+            }),
+      },
+    },
+  ];
+}
+
+function buildEdgeStyle(ctx: StyleContext): cytoscape.StylesheetStyle {
+  return {
+    selector: 'edge',
+    style: {
+      width: DefaultEdgeWidth,
+      'line-color': '#333942',
+      ...ctx.config?.cytoscapeStyles.edge?.base,
+    },
+  };
+}
+
+function buildActiveNodeStyle(): cytoscape.StylesheetStyle {
+  return {
+    selector: 'node:active',
+    style: {
+      'overlay-opacity': 0,
+    },
+  };
+}
+
+function buildCompoundNodeStyle(): cytoscape.StylesheetStyle {
+  return {
+    selector: 'node:parent',
+    style: {
+      'background-image': 'none none',
+      'background-opacity': 0,
+      'border-opacity': 0,
+      label: '',
+      events: 'no',
+    },
+  };
+}

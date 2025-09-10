@@ -23,6 +23,7 @@ export const MindmapInitialState: MindmapState = {
   isRootNodeNotFound: false,
   fullscreenReferences: null,
   fullscreenInitialSlide: null,
+  activeFullscreenReferenceId: null,
 };
 
 export const mindmapSlice = createSlice({
@@ -40,7 +41,7 @@ export const mindmapSlice = createSlice({
       }
 
       if (Object.keys(payload.visitedNodes).length === 0) {
-        const rootNodeId = payload.elements[0].data.id;
+        const rootNodeId = payload.elements[0]?.data.id;
         state.visitedNodes = {
           [rootNodeId]: rootNodeId,
         };
@@ -134,6 +135,9 @@ export const mindmapSlice = createSlice({
     },
     setFullscreenInitialSlide: (state, { payload }: PayloadAction<number | null>) => {
       state.fullscreenInitialSlide = payload;
+    },
+    setActiveFullscreenReferenceId: (state, { payload }: PayloadAction<string | null>) => {
+      state.activeFullscreenReferenceId = payload;
     },
   },
 });

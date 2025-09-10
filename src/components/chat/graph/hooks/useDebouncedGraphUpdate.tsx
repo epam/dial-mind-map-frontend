@@ -5,7 +5,9 @@ import { cloneDeep } from 'lodash-es';
 import { useEffect, useRef } from 'react';
 
 import { NEW_QUESTION_LABEL } from '@/constants/app';
-import { Edge, Element, GraphElement, Node } from '@/types/graph';
+import { GraphConfig, GraphImgResourceKey } from '@/types/customization';
+import { Edge, Element, GraphElement, Node, SystemNodeDataKeys } from '@/types/graph';
+import { isNode } from '@/utils/app/graph/typeGuards';
 
 import { AnimationDurationMs, DefaultGraphDepth, InitLayoutOptions, MaxVisibleNodesCount } from '../options';
 import { adjustMessages } from '../utils/adjustMessages';
@@ -13,7 +15,8 @@ import { filterInvalidEdges } from '../utils/graph/filterInvalidEdges';
 import { getSubgraph } from '../utils/graph/getSubgraph';
 import { markParents } from '../utils/graph/markParents';
 import { unmarkParents } from '../utils/graph/unmarkParents';
-import { adjustElementsStyles } from '../utils/styles/adjustElementsStyles';
+import { sanitizeElements } from '../utils/sanitizeElements';
+import { adjustElementsStyles, adjustNeonedNodeStyles } from '../utils/styles/adjustElementsStyles';
 import { adjustCompoundNodes } from '../utils/visualization/adjustCompoundNodes';
 import { hideEdges } from '../utils/visualization/hideEdges';
 import { hideNodes } from '../utils/visualization/hideNodes';
@@ -29,6 +32,11 @@ interface UseDebouncedGraphUpdateProps {
   isInitialization: boolean;
   updateSignal: number;
   delay?: number;
+  fontFamily?: string;
+  mindmapAppName: string;
+  mindmapFolder: string;
+  theme: string;
+  graphConfig: GraphConfig;
 }
 
 export const useDebouncedGraphUpdate = ({
@@ -40,12 +48,22 @@ export const useDebouncedGraphUpdate = ({
   isInitialization,
   updateSignal,
   delay = AnimationDurationMs + 300,
+  fontFamily,
+  mindmapAppName,
+  mindmapFolder,
+  theme,
+  graphConfig,
 }: UseDebouncedGraphUpdateProps) => {
   const cyRef = useRef(cy);
   const elementsRef = useRef(elements);
   const focusNodeIdRef = useRef(focusNodeId);
   const visitedNodesRef = useRef(visitedNodes);
   const dispatchRef = useRef(dispatch);
+  const fontFamilyRef = useRef(fontFamily);
+  const mindmapAppNameRef = useRef(mindmapAppName);
+  const mindmapFolderRef = useRef(mindmapFolder);
+  const themeRef = useRef(theme);
+  const graphConfigRef = useRef(graphConfig);
 
   useEffect(() => {
     cyRef.current = cy;
@@ -53,7 +71,23 @@ export const useDebouncedGraphUpdate = ({
     focusNodeIdRef.current = focusNodeId;
     visitedNodesRef.current = visitedNodes;
     dispatchRef.current = dispatch;
-  }, [cy, elements, focusNodeId, visitedNodes, dispatch]);
+    fontFamilyRef.current = fontFamily;
+    mindmapAppNameRef.current = mindmapAppName;
+    mindmapFolderRef.current = mindmapFolder;
+    themeRef.current = theme;
+    graphConfigRef.current = graphConfig;
+  }, [
+    cy,
+    elements,
+    focusNodeId,
+    visitedNodes,
+    dispatch,
+    fontFamily,
+    mindmapAppName,
+    mindmapFolder,
+    theme,
+    graphConfig,
+  ]);
 
   const debouncedUpdate = useRef(
     debounce(
@@ -92,6 +126,7 @@ export const useDebouncedGraphUpdate = ({
 
         subgraphElements = unmarkParents(subgraphElements);
         subgraphElements = markParents(subgraphElements, focusNodeId);
+        subgraphElements = sanitizeElements(subgraphElements, graphConfigRef.current.useNodeIconAsBgImage);
 
         const newNodes = subgraphElements.filter(el => !(el.data as any).source) as Element<Node>[];
         let currentNodes = cy.nodes();
@@ -119,9 +154,51 @@ export const useDebouncedGraphUpdate = ({
           }
         }
 
-        const nodeColorMap = adjustElementsStyles(cy, focusNodeId, visitedIds, previousNodeId);
+        const nodeColorMap = adjustElementsStyles(
+          cy,
+          focusNodeId,
+          visitedIds,
+          previousNodeId,
+          graphConfigRef.current,
+          fontFamilyRef.current,
+        );
 
-        adjustMessages(cy, focusNode, dispatch, nodeColorMap, previousNodeId);
+        // Update styles for neon nodes and icons
+        subgraphElements.forEach(el => {
+          if (!isNode(el.data)) return;
+          const node = cy.getElementById(el.data.id);
+          const icon = isNode(el.data) && el.data.icon;
+          if (icon != null && node.data('icon') !== icon) {
+            node.data('icon', icon);
+          }
+          if (icon == null && node.data('icon')) {
+            node.data('icon', null);
+          }
+
+          const isNeoned = el.data.neon;
+          if (isNeoned && !node.data(SystemNodeDataKeys.Neon)) {
+            node.data(SystemNodeDataKeys.Neon, true);
+            adjustNeonedNodeStyles(node);
+          }
+          if (!isNeoned && node.data(SystemNodeDataKeys.Neon)) {
+            node.data(SystemNodeDataKeys.Neon, false);
+            node.data(SystemNodeDataKeys.Pulsating, false);
+          }
+        });
+
+        adjustMessages({
+          cyInstance: cy,
+          focusNode,
+          dispatch,
+          nodeColorMap,
+          previousNodeId,
+          mindmapAppName: mindmapAppNameRef.current,
+          mindmapFolder: mindmapFolderRef.current,
+          theme: themeRef.current,
+          defaultBgImg: graphConfigRef.current.images?.[GraphImgResourceKey.DefaultBgImg],
+          isInitialization: null,
+          needToUpdateInBucket: true,
+        });
 
         cy.layout({
           randomize: false,

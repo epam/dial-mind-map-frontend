@@ -6,3 +6,5 @@ import { ChatAuthState } from './chatAuth.slice';
 const rootSelector = (state: ChatRootState): ChatAuthState => state.chatAuth;
 
 export const selectRedirectToSignin = createSelector([rootSelector], state => state.redirectToSignin);
+
+export const selectRedirectToForbidden = createSelector([rootSelector], state => state.redirectToForbidden);

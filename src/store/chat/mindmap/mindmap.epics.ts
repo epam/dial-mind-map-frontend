@@ -18,6 +18,7 @@ import {
 } from 'rxjs';
 import { fromFetch } from 'rxjs/fetch';
 
+import { DefaultMaxNodesLimit } from '@/constants/app';
 import { DeploymentIdHeaderName } from '@/constants/http';
 import { Edge, Element, Graph, GraphElement, Node } from '@/types/graph';
 import { HTTPMethod } from '@/types/http';
@@ -25,8 +26,10 @@ import { ChatRootEpic } from '@/types/store';
 import { ToastType } from '@/types/toasts';
 import { adjustVisitedNodes, getEdgeId } from '@/utils/app/graph/common';
 
+import { AppearanceSelectors } from '../appearance/appearance.reducers';
 import { ApplicationSelectors } from '../application/application.reducer';
 import { ConversationActions, ConversationSelectors } from '../conversation/conversation.reducers';
+import { PlaybackSelectors } from '../playback/playback.selectors';
 import { ChatUIActions } from '../ui/ui.reducers';
 import { checkForUnauthorized } from '../utils/checkForUnauthorized';
 import { globalCatchChatUnauthorized } from '../utils/globalCatchUnauthorized';
@@ -126,157 +129,177 @@ const fetchGraphEpic: ChatRootEpic = (action$, state$) =>
       visitedNodes: MindmapSelectors.selectVisitedNodes(state$.value),
       customViewState: ConversationSelectors.selectCustomViewState(state$.value),
       application: ApplicationSelectors.selectApplication(state$.value),
+      isPlayback: PlaybackSelectors.selectIsPlayback(state$.value),
+      themeConfig: AppearanceSelectors.selectThemeConfig(state$.value),
     })),
-    mergeMap(({ payload, elements, depth, focusNodeId, visitedNodes, customViewState, application }) => {
-      const customElements = !!payload ? payload.customElements : customViewState.customElements;
-      const body: any = {
+    mergeMap(
+      ({
+        payload,
+        elements,
         depth,
-        ...customElements,
-      };
+        focusNodeId,
+        visitedNodes,
+        customViewState,
+        application,
+        isPlayback,
+        themeConfig,
+      }) => {
+        if (isPlayback) {
+          return EMPTY;
+        }
 
-      const focusedNodeId = !!payload ? payload.focusNodeId : focusNodeId || customViewState.focusNodeId;
-      if (focusedNodeId) {
-        body.node = focusedNodeId;
-      }
+        const customElements = !!payload ? payload.customElements : customViewState.customElements;
+        const body: any = {
+          depth,
+          max_nodes: themeConfig?.graph?.maxNodesLimit ?? DefaultMaxNodesLimit,
+          ...customElements,
+        };
 
-      const visitedNodeIds = !!payload
-        ? payload.visitedNodeIds
-        : Object.keys(visitedNodes).length === 0
-          ? customViewState.visitedNodeIds
-          : visitedNodes;
-      const previousNodeId = visitedNodeIds[focusedNodeId] ?? null;
-      if (previousNodeId && previousNodeId !== focusNodeId) {
-        body['previous_node'] = previousNodeId;
-      }
-      if (
-        focusedNodeId &&
-        previousNodeId &&
-        !elements.some((el: any) => el.data.target === focusedNodeId && el.data.source === previousNodeId)
-      ) {
-        body.edges = [
-          ...(body.edges ?? []),
-          {
-            data: {
-              id: getEdgeId(focusNodeId, previousNodeId),
-              target: focusedNodeId,
-              source: previousNodeId,
-              type: 'Manual',
+        const focusedNodeId = !!payload ? payload.focusNodeId : focusNodeId || customViewState.focusNodeId;
+        if (focusedNodeId) {
+          body.node = focusedNodeId;
+        }
+
+        const visitedNodeIds = !!payload
+          ? payload.visitedNodeIds
+          : Object.keys(visitedNodes).length === 0
+            ? customViewState.visitedNodeIds
+            : visitedNodes;
+        const previousNodeId = visitedNodeIds[focusedNodeId] ?? null;
+        if (previousNodeId && previousNodeId !== focusNodeId) {
+          body['previous_node'] = previousNodeId;
+        }
+        if (
+          focusedNodeId &&
+          previousNodeId &&
+          !elements.some((el: any) => el.data.target === focusedNodeId && el.data.source === previousNodeId) &&
+          focusedNodeId !== previousNodeId
+        ) {
+          body.edges = [
+            ...(body.edges ?? []),
+            {
+              data: {
+                id: getEdgeId(focusNodeId, previousNodeId),
+                target: focusedNodeId,
+                source: previousNodeId,
+                type: 'Manual',
+              },
+            },
+            {
+              data: {
+                id: getEdgeId(focusNodeId, previousNodeId),
+                target: previousNodeId,
+                source: focusedNodeId,
+                type: 'Manual',
+              },
+            },
+          ];
+        }
+
+        const requestBody = {
+          messages: [],
+          custom_fields: {
+            configuration: {
+              subgraph_request: body,
             },
           },
-          {
-            data: {
-              id: getEdgeId(focusNodeId, previousNodeId),
-              target: previousNodeId,
-              source: focusedNodeId,
-              type: 'Manual',
-            },
+        };
+
+        if (!application) {
+          return throwError(() => new Error('Application is not available.'));
+        }
+
+        return fromFetch(`api/graph`, {
+          method: HTTPMethod.POST,
+          headers: {
+            'Content-Type': 'application/json',
+            [DeploymentIdHeaderName]: application.name ?? application.application ?? '',
           },
-        ];
-      }
-
-      const requestBody = {
-        messages: [],
-        custom_fields: {
-          configuration: {
-            subgraph_request: body,
-          },
-        },
-      };
-
-      if (!application) {
-        return throwError(() => new Error('Application is not available.'));
-      }
-
-      return fromFetch(`api/graph`, {
-        method: HTTPMethod.POST,
-        headers: {
-          'Content-Type': 'application/json',
-          [DeploymentIdHeaderName]: application.name ?? application.application ?? '',
-        },
-        body: JSON.stringify(requestBody),
-      }).pipe(
-        mergeMap(resp => checkForUnauthorized(resp)),
-        mergeMap(resp => {
-          if (resp.ok) {
-            return from(resp.json());
-          } else {
-            return from(resp.json()).pipe(
-              mergeMap((errorBody: any) => {
-                const errorMessage = errorBody.error?.message || resp.statusText;
-                return throwError(() => ({
-                  ...errorBody,
-                  status: resp.status,
-                  statusText: errorMessage,
-                }));
-              }),
-            );
-          }
-        }),
-        mergeMap((response: Graph) => {
-          if (elements.length === 0) {
-            const savedFocusedNodeId = focusNodeId || customViewState.focusNodeId;
-            const savedFocusedNode = response.nodes.find(node => node.data.id === savedFocusedNodeId);
-            const newFocusedNodeId = savedFocusedNode ? savedFocusedNodeId : response.nodes[0].data.id;
-
-            return of(
-              MindmapActions.init({
-                ...MindmapInitialState,
-                elements: [...response.nodes, ...response.edges],
-                isReady: true,
-                focusNodeId: newFocusedNodeId,
-                visitedNodes: customViewState.visitedNodeIds,
-                isNotFound: false,
-                isRootNodeNotFound: false,
-              }),
-            );
-          } else {
-            const actions: Action[] = [MindmapActions.resetSequentialFetchFailures()];
-
-            const newElements = [...response.nodes, ...response.edges];
-            const isGraphChanged = !isEqual(elements, newElements);
-
-            if (isGraphChanged) {
-              actions.push(
-                MindmapActions.updateElements({
-                  elements: newElements,
+          body: JSON.stringify(requestBody),
+        }).pipe(
+          mergeMap(resp => checkForUnauthorized(resp)),
+          mergeMap(resp => {
+            if (resp.ok) {
+              return from(resp.json());
+            } else {
+              return from(resp.json()).pipe(
+                mergeMap((errorBody: any) => {
+                  const errorMessage = errorBody.error?.message || resp.statusText;
+                  return throwError(() => ({
+                    ...errorBody,
+                    status: resp.status,
+                    statusText: errorMessage,
+                  }));
                 }),
               );
             }
+          }),
+          mergeMap((response: Graph) => {
+            if (elements.length === 0) {
+              const savedFocusedNodeId = focusNodeId || customViewState.focusNodeId;
+              const savedFocusedNode = response.nodes.find(node => node.data.id === savedFocusedNodeId);
+              const newFocusedNodeId = savedFocusedNode ? savedFocusedNodeId : response.nodes[0].data.id;
 
-            if (!focusedNodeId) {
-              actions.unshift(MindmapActions.setFocusNodeId(response.nodes[0].data.id));
+              return of(
+                MindmapActions.init({
+                  ...MindmapInitialState,
+                  elements: [...response.nodes, ...response.edges],
+                  isReady: true,
+                  focusNodeId: newFocusedNodeId,
+                  visitedNodes: customViewState.visitedNodeIds,
+                  isNotFound: false,
+                  isRootNodeNotFound: false,
+                }),
+              );
+            } else {
+              const actions: Action[] = [MindmapActions.resetSequentialFetchFailures()];
+
+              const newElements = [...response.nodes, ...response.edges];
+              const isGraphChanged = !isEqual(elements, newElements);
+
+              if (isGraphChanged) {
+                actions.push(
+                  MindmapActions.updateElements({
+                    elements: newElements,
+                  }),
+                );
+              }
+
+              if (!focusedNodeId) {
+                actions.unshift(MindmapActions.setFocusNodeId(response.nodes[0].data.id));
+              }
+
+              return concat(actions);
             }
+          }),
+          globalCatchChatUnauthorized(),
+          catchError((errorResponse: any) => {
+            console.warn(errorResponse);
+            const errorMessage = errorResponse.error?.message;
+            const isMindmapNotFound = errorResponse.status === 404 && errorMessage === 'Not found mindmap';
+            const isRootNodeNotFound =
+              errorResponse.status === 404 && errorMessage === 'Not found node' && !focusedNodeId;
+            const actions = [
+              of(MindmapActions.increaseSequentialFetchFailures()),
+              of(
+                MindmapActions.fetchGraphFail({
+                  nodeId: focusedNodeId,
+                  previousNodeId,
+                  isNotFound: isMindmapNotFound,
+                  isRootNodeNotFound,
+                }),
+              ),
+              isMindmapNotFound && of(MindmapActions.setIsMindmapNotFound(true)),
+              isRootNodeNotFound && of(MindmapActions.setIsNodeNotFound(true)),
+            ].filter(action => !!action);
 
-            return concat(actions);
-          }
-        }),
-        globalCatchChatUnauthorized(),
-        catchError((errorResponse: any) => {
-          console.warn(errorResponse);
-          const errorMessage = errorResponse.error?.message;
-          const isMindmapNotFound = errorResponse.status === 404 && errorMessage === 'Not found mindmap';
-          const isRootNodeNotFound =
-            errorResponse.status === 404 && errorMessage === 'Not found node' && !focusedNodeId;
-          const actions = [
-            of(MindmapActions.increaseSequentialFetchFailures()),
-            of(
-              MindmapActions.fetchGraphFail({
-                nodeId: focusedNodeId,
-                previousNodeId,
-                isNotFound: isMindmapNotFound,
-                isRootNodeNotFound,
-              }),
-            ),
-            isMindmapNotFound && of(MindmapActions.setIsMindmapNotFound(true)),
-            isRootNodeNotFound && of(MindmapActions.setIsNodeNotFound(true)),
-          ].filter(action => !!action);
-
-          return concat(...actions);
-        }),
-        startWith(MindmapActions.setIsGraphFetching(true)),
-        endWith(MindmapActions.setIsGraphFetching(false)),
-      );
-    }),
+            return concat(...actions);
+          }),
+          startWith(MindmapActions.setIsGraphFetching(true)),
+          endWith(MindmapActions.setIsGraphFetching(false)),
+        );
+      },
+    ),
   );
 
 const MaxGraphFetchRetries = 3;

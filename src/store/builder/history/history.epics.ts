@@ -3,7 +3,7 @@ import { combineEpics } from 'redux-observable';
 import { concat, concatMap, EMPTY, filter, from, of } from 'rxjs';
 
 import { MindmapUrlHeaderName } from '@/constants/http';
-import { ExtendedUndoRedo, UndoRedo } from '@/types/common';
+import { ExtendedUndoRedo, Pages, UndoRedo } from '@/types/common';
 import { HTTPMethod } from '@/types/http';
 import { BuilderRootEpic } from '@/types/store';
 
@@ -67,12 +67,19 @@ export const applyActionEpic: BuilderRootEpic = (action$, state$) =>
 
             const sourcesActions$ = response.sources ? handleSourcesResponse(response.sources, [], null) : EMPTY;
             const graphActions$ = response.graph ? handleHistoryGraphResponse(response.graph, []) : EMPTY;
+
             const isGenerated = response.sources?.generated;
 
-            if ((response.sources && !response.graph) || (isGenerated !== undefined && !isGenerated)) {
-              baseActions.push(UIActions.softNavigateTo('sources'));
-            } else if (response.graph) {
-              baseActions.push(UIActions.softNavigateTo('content'));
+            if ((response.sources && !response.graph) || isGenerated === false) {
+              baseActions.push(UIActions.softNavigateTo(Pages.SOURCES));
+            }
+
+            if (response.graph) {
+              baseActions.push(UIActions.softNavigateTo(Pages.CONTENT));
+            }
+
+            if (response.appearances) {
+              baseActions.push(UIActions.softNavigateTo(Pages.CUSTOMIZE));
             }
 
             return concat(from(baseActions), sourcesActions$, graphActions$);

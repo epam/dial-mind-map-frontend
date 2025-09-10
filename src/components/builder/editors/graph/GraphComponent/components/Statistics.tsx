@@ -5,9 +5,9 @@ import { useMemo } from 'react';
 
 import Button from '@/components/common/Button/Button';
 import { Space } from '@/components/common/Space/Space';
-import { BuilderSelectors } from '@/store/builder/builder/builder.reducers';
 import { GraphSelectors } from '@/store/builder/graph/graph.reducers';
 import { useBuilderSelector } from '@/store/builder/hooks';
+import { SourcesSelectors } from '@/store/builder/sources/sources.selectors';
 import { isEdge, isNode } from '@/utils/app/graph/typeGuards';
 
 interface StatisticsProps {
@@ -17,7 +17,7 @@ interface StatisticsProps {
 
 export const Statistics: React.FC<StatisticsProps> = ({ setPinnedStatistics, pinnedStatistics }) => {
   const elements = useBuilderSelector(GraphSelectors.selectElements);
-  const sources = useBuilderSelector(BuilderSelectors.selectSources);
+  const sources = useBuilderSelector(SourcesSelectors.selectSources);
   const stats = useMemo(() => {
     const nodes = elements.filter(el => isNode(el.data)).length;
     const edges = elements.filter(el => isEdge(el.data)).length;

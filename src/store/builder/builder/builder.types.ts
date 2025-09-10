@@ -1,17 +1,25 @@
-import { GenerationStatus, Source, SourcesNames } from '@/types/sources';
+import { GenerationType } from '@/types/generate';
+import { Model } from '@/types/model';
+import { GenerationStatus } from '@/types/sources';
 
 export interface BuilderState {
-  sources: Source[];
-  sourcesNames: SourcesNames;
   generatingStatus: GeneratingStatus;
   inProgressRequestsCounter: number;
   etag: string | null;
   generationComplete: boolean;
-  isSourcesLoading: boolean;
   isGraphLoading: boolean;
   generationStatus: GenerationStatus | null;
   isMindmapSubscribeActive: boolean;
   isGenerated: boolean;
+  generationType: GenerationType;
+  models: Model[];
+  currentModelId: string | null;
+  prompt: string | null;
+  isModelsLoading?: boolean;
+  defaultSimpleModeModel: string;
+  defaultSimpleModePrompt: string;
+  isMindmapExportInProgress: boolean;
+  isMindmapImportInProgress: boolean;
 }
 
 export interface GeneratingStatus {

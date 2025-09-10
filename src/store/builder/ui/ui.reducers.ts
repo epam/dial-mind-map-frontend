@@ -1,15 +1,19 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+import { AuthUiMode } from '@/types/auth';
+import { Pages } from '@/types/common';
 import { ToastType } from '@/types/toasts';
 
 import { BuilderRootState } from '..';
 
 export type View = 'graph' | 'table';
+export type CustomizeView = 'form' | 'json';
 
 export interface UIState {
   theme: string;
   currentView: View;
+  currentCustomizeView: CustomizeView;
   isNodeEditorOpen: boolean;
   nodeEditorWidth?: number;
   isGenEdgesConfirmModalOpen: boolean;
@@ -17,6 +21,7 @@ export interface UIState {
   isGenEdgesLoaderModalOpen: boolean;
   isGenEdgesDelLoaderModalOpen: boolean;
   isRelayoutConfirmModalOpen: boolean;
+  isResetThemeConfirmModalOpen: boolean;
   areGeneretedEdgesShowen: boolean;
   areInboundEdgesShowen: boolean;
   areOutboundEdgesShowen: boolean;
@@ -28,20 +33,25 @@ export interface UIState {
   mindmapIframeTitle: string;
   isAllowApiKeyAuth: boolean;
   providers: string[];
-  navigationTarget?: 'sources' | 'content';
+  navigationTarget?: Pages;
+  authUiMode: AuthUiMode;
+  isSimpleGenerationModeAvailable: boolean;
+  isOffline?: boolean;
 }
 
 export type UIStoredState = Pick<UIState, 'areGeneretedEdgesShowen' | 'currentView'>;
 
 export const UIInitialState: UIState = {
-  theme: '',
+  theme: 'dark',
   currentView: 'graph',
+  currentCustomizeView: 'form',
   isNodeEditorOpen: false,
   isGenEdgesConfirmModalOpen: false,
   isGenEdgesDelConfirmModalOpen: false,
   isGenEdgesLoaderModalOpen: false,
   isGenEdgesDelLoaderModalOpen: false,
   isRelayoutConfirmModalOpen: false,
+  isResetThemeConfirmModalOpen: false,
   areGeneretedEdgesShowen: true,
   areInboundEdgesShowen: true,
   areOutboundEdgesShowen: true,
@@ -50,6 +60,9 @@ export const UIInitialState: UIState = {
   mindmapIframeTitle: '',
   isAllowApiKeyAuth: false,
   providers: [],
+  authUiMode: AuthUiMode.Popup,
+  isSimpleGenerationModeAvailable: false,
+  isOffline: false,
 };
 
 export const uiSlice = createSlice({
@@ -66,8 +79,14 @@ export const uiSlice = createSlice({
     setCurrentView: (state, { payload }: PayloadAction<View>) => {
       state.currentView = payload;
     },
+    setCurrentCustomizeView: (state, { payload }: PayloadAction<CustomizeView>) => {
+      state.currentCustomizeView = payload;
+    },
     setIsNodeEditorOpen: (state, { payload }: PayloadAction<boolean>) => {
       state.isNodeEditorOpen = payload;
+    },
+    setIsResetThemeConfirmModalOpen: (state, { payload }: PayloadAction<boolean>) => {
+      state.isResetThemeConfirmModalOpen = payload;
     },
     setNodeEditorWidth: (state, { payload }: PayloadAction<number>) => {
       state.nodeEditorWidth = payload;
@@ -125,8 +144,11 @@ export const uiSlice = createSlice({
         duration?: number;
       }>,
     ) => state,
-    softNavigateTo: (state, { payload }: PayloadAction<'sources' | 'content' | undefined>) => {
+    softNavigateTo: (state, { payload }: PayloadAction<Pages | undefined>) => {
       state.navigationTarget = payload;
+    },
+    setIsOffline: (state, { payload }: PayloadAction<boolean>) => {
+      state.isOffline = payload;
     },
   },
 });
@@ -136,6 +158,8 @@ const rootSelector = (state: BuilderRootState): UIState => state.ui;
 const selectTheme = createSelector([rootSelector], state => state.theme);
 
 const selectCurrentView = createSelector([rootSelector], state => state.currentView);
+
+const selectCurrentCustomizeView = createSelector([rootSelector], state => state.currentCustomizeView);
 
 const selectIsNodeEditorOpen = createSelector([rootSelector], state => state.isNodeEditorOpen);
 
@@ -178,6 +202,17 @@ const selectSourceIdToApplyToGraph = createSelector([rootSelector], state => sta
 
 const selectNavigationTarget = createSelector([rootSelector], state => state.navigationTarget);
 
+const selectIsResetThemeConfirmModalOpen = createSelector([rootSelector], state => state.isResetThemeConfirmModalOpen);
+
+const selectAuthUiMode = createSelector([rootSelector], state => state.authUiMode);
+
+const selectIsOffline = createSelector([rootSelector], state => state.isOffline);
+
+const selectIsSimpleGenerationModeAvailable = createSelector(
+  [rootSelector],
+  state => state.isSimpleGenerationModeAvailable,
+);
+
 export const UIActions = uiSlice.actions;
 
 export const UISelectors = {
@@ -185,6 +220,7 @@ export const UISelectors = {
   selectDialChatHost,
   selectMindmapIframeTitle,
   selectCurrentView,
+  selectCurrentCustomizeView,
   selectIsNodeEditorOpen,
   selectNodeEditorWidth,
   selectIsGenEdgesConfirmModalOpen,
@@ -202,4 +238,8 @@ export const UISelectors = {
   selectIsAllowApiKey,
   selectProviders,
   selectNavigationTarget,
+  selectIsResetThemeConfirmModalOpen,
+  selectAuthUiMode,
+  selectIsSimpleGenerationModeAvailable,
+  selectIsOffline,
 };

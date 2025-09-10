@@ -1,10 +1,12 @@
 import { NodeSingular } from 'cytoscape';
 import { memoize } from 'lodash-es';
 
+import { SystemNodeDataKeys } from '@/types/graph';
+
 import { getHeight, getWidth } from './styles';
 
 export const getNeonBackground = (node: NodeSingular) => {
-  const color = node.data('bg-color');
+  const color = node.data(SystemNodeDataKeys.BgColor);
   const isIcon = node.data('icon') ?? false;
 
   const baseWidth = isIcon ? getWidth(node) + 16 + 10 : getWidth(node) + 16;

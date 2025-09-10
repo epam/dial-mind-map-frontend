@@ -17,4 +17,5 @@ export interface MindmapState {
   isRootNodeNotFound: boolean;
   fullscreenReferences: Array<DocsReference | NodeReference> | null;
   fullscreenInitialSlide: number | null;
+  activeFullscreenReferenceId: string | null;
 }

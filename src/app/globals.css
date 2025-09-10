@@ -171,11 +171,52 @@ pre:has(div.codeblock) {
   .button.button-chat {
     @apply absolute inset-x-0 -top-14 mx-auto mb-3 flex w-fit items-center gap-3 border-primary bg-layer-2 p-3 hover:bg-layer-4;
   }
+
+  .button.button-icon {
+    @apply flex items-center justify-center rounded border border-transparent p-[5px] outline-none text-secondary;
+  }
+
+  .button.button-icon:disabled {
+    @apply cursor-not-allowed text-controls-disable;
+  }
+
+  .button.button-icon:not(:disabled) {
+    @apply text-secondary hover:bg-accent-primary-alpha hover:text-accent-primary;
+  }
+
+  .button.button-icon.button-accent-primary:not(:disabled) {
+    @apply text-accent-primary;
+  }
+
+  .button.button-icon.button-error:not(:disabled) {
+    @apply text-error hover:bg-error;
+  }
+
+  .button.button-icon.button-accent-secondary:not(:disabled) {
+    @apply text-accent-secondary hover:bg-accent-secondary-alpha;
+  }
 }
 
 @layer components {
   .checkbox {
     @apply relative m-0 mr-2 inline h-4 w-4 shrink-0 appearance-none rounded-sm border border-primary text-accent-primary checked:border-accent-primary indeterminate:border-accent-primary hover:border-accent-primary focus-visible:outline-none;
+  }
+}
+
+@layer components {
+  .reference-badge {
+    background-color: var(--references-badge-backgroundColor-default);
+    color: var(--references-badge-textColor-default);
+
+    &:hover {
+      background-color: var(--references-badge-backgroundColor-hovered);
+      color: var(--references-badge-textColor-hovered);
+    }
+  }
+
+  .reference-badge.selected {
+    background-color: var(--references-badge-backgroundColor-selected);
+    color: var(--references-badge-textColor-selected);
   }
 }
 
@@ -306,4 +347,82 @@ pre:has(div.codeblock) {
 
 .rpv-default-layout__container {
   border: none !important;
+}
+
+
+/* -----------------------------------------------------------------------------
+   ⚠️ Public Styling API – Do Not Modify Without Versioning ⚠️
+
+   The following utility classes are part of the public styling API for users.
+   These class names serve as stable override anchors, allowing end-users to
+   customize visual aspects of the chat UI through their own CSS.
+
+   🔒 Do not rename, remove, or repurpose these classes without providing
+   backward compatibility or communication, as users may rely on them.
+
+   🛠️ These classes are intentionally defined without styles inside this file.
+   Tailwind utility classes are used internally for component styling, while
+   these hooks allow external styling via plain CSS.
+
+   📚 To override a class, users can write styles like:
+
+       .chat-footer__input {
+         background-color: #fafafa;
+         border-radius: 8px;
+       }
+
+   📦 New classes must be added in two places:
+       1. This @layer components block
+       2. The `CustomClassesSafeList`
+
+----------------------------------------------------------------------------- */
+
+@layer components {
+
+  /* Containers */
+  .chat-container {}
+
+  .chat-header {}
+
+  .chat-conversation {}
+
+  .chat-footer {}
+
+  /* Action buttons */
+  .toggle-mindmap-button {}
+
+  .history-reset-button {}
+
+  .graph-fit-button {}
+
+  .mobile-menu-toggle-button {}
+
+  /* Conversation messages */
+  .chat-conversation__message {}
+
+  .chat-conversation__message--active {}
+
+  .chat-conversation__message-icon {}
+
+  .chat-conversation__message-nodes {}
+
+  .chat-conversation__message-node {}
+
+  /* Input and submit */
+  .chat-footer__input {}
+
+  .chat-footer__submit-btn {}
+
+  /* Mobile menu */
+  .mobile-menu {}
+
+  /* Level switcher */
+  .level-switcher {}
+
+  .level-switcher__button {}
+
+  .level-switcher__button--active {}
+
+  /* Reference preview */
+  .reference-view {}
 }

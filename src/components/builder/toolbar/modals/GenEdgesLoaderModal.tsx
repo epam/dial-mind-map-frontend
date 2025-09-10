@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 
-import Loader from '@/components/builder/common/Loader';
+import Loader from '@/components/common/Loader';
 import { useBuilderDispatch, useBuilderSelector } from '@/store/builder/hooks';
 import { UIActions, UISelectors } from '@/store/builder/ui/ui.reducers';
 import { ModalState } from '@/types/modal';

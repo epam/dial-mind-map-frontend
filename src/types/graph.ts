@@ -46,6 +46,10 @@ export interface Node extends Entity {
 
 export interface ColoredNode extends Node {
   color: string;
+  textColor: string;
+  borderColor?: string;
+  image?: string;
+  branchColorIndex: number;
 }
 
 export enum EdgeType {
@@ -82,4 +86,18 @@ export interface Graph {
   nodes: PositionedElement<Node>[];
   edges: Element<Edge>[];
   root: string;
+}
+
+// Enum representing system-specific node data keys used for internal visualizations.
+// These keys facilitate communication between Cytoscape contexts and other application contexts.
+// Note: These fields are not part of the standard Node data entity and are intended for visualization purposes only.
+export enum SystemNodeDataKeys {
+  BranchColorIndex = 'branch-color-index',
+  BorderColor = 'border-color',
+  TextColor = 'text-color',
+  BgColor = 'bg-color',
+  Neon = 'neon',
+  Pulsating = 'pulsating',
+  NodeType = 'node-type',
+  Parent = 'parent',
 }

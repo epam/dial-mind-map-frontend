@@ -1,5 +1,7 @@
 import type { Config } from 'tailwindcss';
 
+import { CustomClassesSafeList } from './src/constants/custom-styles';
+
 const commonBgColors = {
   transparent: 'transparent',
   'layer-0': 'var(--bg-layer-0, #000000)',
@@ -18,6 +20,7 @@ const commonBgColors = {
   'accent-primary-alpha': 'var(--bg-accent-primary-alpha, #5C8DEA2B)',
   'accent-secondary-alpha': 'var(--bg-accent-secondary-alpha, #37BABC26)',
   'accent-tertiary-alpha': 'var(--bg-accent-tertiary-alpha, #A972FF2B)',
+  overlay: 'var(--bg-overlay, #090D13B3)',
 };
 
 const commonBorderColors = {
@@ -98,7 +101,8 @@ const config: Config = {
         mindmap: '0px 0px 15px 0px #090D131A',
       },
       fontFamily: {
-        DEFAULT: ['var(--theme-font, var(--font-inter))'],
+        DEFAULT: ['var(--theme-font, var(--font-montserrat))'],
+        theme: ['var(--theme-font, var(--font-montserrat))'],
         codeblock: ['var(--codeblock-font, var(--theme-font))'],
       },
       fontSize: {
@@ -122,6 +126,8 @@ const config: Config = {
       },
     },
   },
+  // Ensure these classes are always included
+  safelist: [...CustomClassesSafeList, 'border-solid', 'border-dashed', 'border-dotted'],
   variants: {
     extend: {
       visibility: ['group-hover'],

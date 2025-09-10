@@ -8,6 +8,7 @@ import { generateMindmapFolderPath } from '@/utils/app/application';
 
 import { ApplicationActions, ApplicationSelectors } from '../../application/application.reducer';
 import { FilesActions } from '../../files/files.reducers';
+import { SourcesActions } from '../../sources/sources.reducers';
 import { UIActions } from '../../ui/ui.reducers';
 import { checkForUnauthorized } from '../../utils/checkForUnauthorized';
 import { globalCatchUnauthorized } from '../../utils/globalCatchUnauthorized';
@@ -26,7 +27,7 @@ export const generateMindmapEpic: BuilderRootEpic = (action$, state$) =>
       ];
 
       if (payload.sources) {
-        actions.push(of(BuilderActions.setSources(payload.sources)));
+        actions.push(of(SourcesActions.setSources(payload.sources)));
       }
 
       return concat(

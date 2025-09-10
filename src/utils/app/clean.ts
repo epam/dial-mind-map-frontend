@@ -6,8 +6,10 @@ import {
   FALLBACK_MODEL_ID,
 } from '@/constants/settings';
 import { Conversation, ConversationEntityModel } from '@/types/chat';
+import { Element, GraphElement } from '@/types/graph';
 
 import { constructPath } from './file';
+import { isNode } from './graph/typeGuards';
 import { getConversationRootId } from './id';
 
 export const cleanConversation = (conversation: Partial<Conversation>): Conversation => {
@@ -50,7 +52,31 @@ export const cleanConversation = (conversation: Partial<Conversation>): Conversa
       focusNodeId: '',
       visitedNodeIds: {},
     },
+    playback: conversation.playback,
   };
 
   return cleanConversation;
+};
+
+export const cleanGraphElementsForPlayback = (elements: Element<GraphElement>[]): Element<GraphElement>[] => {
+  return elements.map(element => {
+    if (isNode(element.data)) {
+      return {
+        data: {
+          id: element.data.id,
+          label: element.data.label,
+          neon: element.data.neon,
+          icon: element.data.icon,
+        },
+      };
+    }
+
+    return {
+      data: {
+        id: element.data.id,
+        source: element.data.source,
+        target: element.data.target,
+      },
+    };
+  });
 };

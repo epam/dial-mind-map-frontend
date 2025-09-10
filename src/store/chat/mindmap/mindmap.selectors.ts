@@ -44,3 +44,8 @@ export const selectIsRootNodeNotFound = createSelector([rootSelector], state => 
 export const selectFullscreenReferences = createSelector([rootSelector], state => state.fullscreenReferences);
 
 export const selectFullscreenInitialSlide = createSelector([rootSelector], state => state.fullscreenInitialSlide ?? 0);
+
+export const selectActiveFullscreenReferenceId = createSelector(
+  [rootSelector],
+  state => state.activeFullscreenReferenceId,
+);

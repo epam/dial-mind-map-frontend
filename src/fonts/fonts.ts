@@ -4,6 +4,7 @@ export const montserrat = Montserrat({
   subsets: ['latin'],
   weight: 'variable',
   variable: '--font-montserrat',
+  preload: true,
 });
 
 export const inter = Inter({

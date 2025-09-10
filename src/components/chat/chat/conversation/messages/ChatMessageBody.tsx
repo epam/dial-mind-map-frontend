@@ -2,10 +2,11 @@ import classNames from 'classnames';
 
 import { ErrorMessage } from '@/components/builder/common/ErrorMessage';
 import { Space } from '@/components/common/Space/Space';
-import { montserrat } from '@/fonts/fonts';
+import { AppearanceSelectors } from '@/store/chat/appearance/appearance.reducers';
 import { useChatSelector } from '@/store/chat/hooks';
 import { MindmapSelectors } from '@/store/chat/mindmap/mindmap.reducers';
 import { Message } from '@/types/chat';
+import { ChatNodeResourceKey, ChatNodeType, IconResourceKey } from '@/types/customization';
 import { ColoredNode } from '@/types/graph';
 
 import MarkdownRenderer from './markdown/MarkdownRenderer';
@@ -22,6 +23,9 @@ export const ChatMessageBody = ({ nodes, message, isMessageStreaming, isLastMess
   const visitedNodes = useChatSelector(MindmapSelectors.selectVisitedNodes);
   const focusNodeId = useChatSelector(MindmapSelectors.selectFocusNodeId);
   const previousNodeId = visitedNodes[focusNodeId];
+  const themeConfig = useChatSelector(AppearanceSelectors.selectThemeConfig);
+  const chatNodeThemeConfig = themeConfig?.chat?.chatNode;
+  const arrowBackIconName = themeConfig?.icons?.[IconResourceKey.ArrowBackIcon];
 
   if (!message.content && message.errorMessage) {
     return <ErrorMessage error={message.errorMessage} classes="mr-5 text-sm" />;
@@ -32,25 +36,35 @@ export const ChatMessageBody = ({ nodes, message, isMessageStreaming, isLastMess
       <div
         className={classNames([
           'max-w-full prose dark:prose-invert prose-a:text-accent-primary prose-a:no-underline hover:prose-a:underline text-sm xl:text-base leading-normal md:leading-[1.7]',
-          montserrat.className,
         ])}
       >
         <MarkdownRenderer
           text={message.content}
           references={message.references}
           isShowResponseLoader={!!isMessageStreaming && isLastMessage}
+          messageId={message.id}
         />
       </div>
       {nodes && (
-        <Space size={'small'} direction="horizontal" wrap={true}>
+        <Space size={'small'} direction="horizontal" wrap={true} className="chat-conversation__message-nodes">
           {nodes.map(n => (
             <Node
               id={n.id}
               key={n.id}
               color={n.color}
+              textColor={n.textColor}
               label={n.label}
               isPrevious={previousNodeId === n.id}
               isVisited={!!visitedNodes[n.id]}
+              type={chatNodeThemeConfig?.availableNodeType ?? ChatNodeType.Filled}
+              radius={chatNodeThemeConfig?.['corner-radius']}
+              borderColor={n.borderColor}
+              arrowBackIconName={arrowBackIconName}
+              image={n.image}
+              maskImage={chatNodeThemeConfig?.[ChatNodeResourceKey.MaskImg]}
+              hasVisitedOpacity={
+                !themeConfig?.graph?.paletteSettings?.branchesColors?.[n.branchColorIndex]?.visitedTextColor
+              }
             />
           ))}
         </Space>

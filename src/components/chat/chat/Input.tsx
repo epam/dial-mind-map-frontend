@@ -3,8 +3,9 @@ import classNames from 'classnames';
 import { useCallback, useRef } from 'react';
 
 import Tooltip from '@/components/builder/common/Tooltip';
-import { NEW_QUESTION_LABEL } from '@/constants/app';
+import { ChatInputPlaceholder, NEW_QUESTION_LABEL } from '@/constants/app';
 import { useRecaptchaContext } from '@/hooks/recaptcha/RecaptchaProvider';
+import { AppearanceSelectors } from '@/store/chat/appearance/appearance.reducers';
 import { ApplicationSelectors } from '@/store/chat/application/application.reducer';
 import { ConversationActions, ConversationSelectors } from '@/store/chat/conversation/conversation.reducers';
 import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
@@ -19,6 +20,8 @@ export const Input = ({ classes }: { classes?: string }) => {
   const isMindmapNotFound = useChatSelector(MindmapSelectors.selectIsNotFound);
   const isLastMessageError = useChatSelector(ConversationSelectors.selectIsLastMessageError);
   const conversation = useChatSelector(ConversationSelectors.selectConversation);
+  const placeholder = useChatSelector(AppearanceSelectors.selectChatConfig)?.placeholder ?? ChatInputPlaceholder;
+
   const messages = conversation.messages;
   const formRef = useRef<HTMLFormElement>(null);
   const {
@@ -104,10 +107,10 @@ export const Input = ({ classes }: { classes?: string }) => {
     >
       <input
         className={classNames([
-          'rounded-[3px] bg-layer-3 h-11 md:h-[48px] w-full py-[14px] pl-4 pr-14 text-base placeholder:text-sm placeholder:xl:text-base',
+          'rounded-[3px] bg-layer-3 h-11 md:h-[48px] w-full py-[14px] pl-4 pr-14 text-base placeholder:text-sm placeholder:xl:text-base chat-footer__input',
           (!hasAppProperties || isMindmapNotFound) && 'placeholder:text-controls-disable pointer-events-none',
         ])}
-        placeholder="Type your question"
+        placeholder={placeholder}
         name="message"
         disabled={
           !hasAppProperties ||
@@ -120,7 +123,7 @@ export const Input = ({ classes }: { classes?: string }) => {
         type="submit"
         disabled={!hasAppProperties || (isRecaptchaEnabled && (isCaptchaExecuting || !isCaptchaLoaded))}
         className={classNames([
-          'absolute right-3 top-3 hover:text-accent-primary hover:cursor-pointer group transition-colors duration-200',
+          'absolute right-3 top-1/2 -translate-y-1/2 hover:text-accent-primary hover:cursor-pointer group transition-colors duration-200 chat-footer__submit-btn',
           !hasAppProperties ||
             (isRecaptchaEnabled &&
               (isCaptchaExecuting || !isCaptchaLoaded) &&

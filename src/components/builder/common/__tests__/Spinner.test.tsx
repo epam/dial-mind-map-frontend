@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 
-import { Spinner } from '../Spinner';
+import { Spinner } from '../../../common/Spinner';
 
 jest.mock('@/icons/loader.svg', () => ({
   __esModule: true,
