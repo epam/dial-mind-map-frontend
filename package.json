@@ -51,7 +51,7 @@
     "lodash-es": "^4.17.21",
     "mime-types": "^2.1.35",
     "next": "14.2.31",
-    "next-auth": "^4.24.8",
+    "next-auth": "^4.24.12",
     "node-fetch": "^3.3.2",
     "pino": "^9.4.0",
     "pino-pretty": "^11.2.2",
