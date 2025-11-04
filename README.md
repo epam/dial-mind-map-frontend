@@ -1,21 +1,55 @@
-# Mind Map Studio Frontend
+<h1 align="center">Mind Map Studio Frontend</h1>
+<p align="center"><p align="center">
+        <br>
+        <a href="https://dialx.ai/">
+          <img src="https://dialx.ai/dialx_logo.svg" alt="About DIALX">
+        </a>
+    </p>
+<h4 align="center">
+    <a href="https://discord.gg/ukzj9U9tEe">
+        <img src="https://img.shields.io/static/v1?label=AI%20DIALX%20Community%20in&message=Discord&color=blue&logo=Discord&style=flat-square" alt="Discord">
+    </a>
+</h4>
+
+- [Overview](#overview)
+- [Run locally](#Run-locally)
+- [Environment Variables](#Environment-Variables)
+- [Authors](#Authors)
+
+---
 
 ## Overview
 
-The project is a frontend part of the DIAL Mind Map Studio. Check the demo:
+The project is a frontend part of the DIAL Mind Map Studio.
 
-[![Check the demo](https://img.youtube.com/vi/XYZfWeGdFcE/0.jpg)](https://www.youtube.com/watch?v=XYZfWeGdFcE)
+Mind Map enables users to access information through an interactive knowledge graph and natural language. The application pulls data from various sources, including documents, URLs, and other data inputs and then presents it on UI as a interactive knowledge graph, facilitating intuitive and engaging user interactions with information.
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=XYZfWeGdFcE">
+    <img src="https://img.youtube.com/vi/XYZfWeGdFcE/0.jpg" alt="Check the demo">
+  </a>
+  <br>
+  <em>Click to watch the demo video</em>
+</p>
+
+**[Read more about DIAL Mind Map Studio](https://docs.dialx.ai/tutorials/user-guide#mind-maps)**
+
+**[Backend DIAL Mind Map Studio](https://github.com/epam/dial-mind-map-backend)**
+
+---
 
 ## Run locally
 
 Execute `npm run dev` to run a frontend server in dev mode.
+
+---
 
 ## Environment Variables
 
 The **Mind Map Studio** application uses environment variables to configure authentication, API connections, and theming settings. Below is a list of environment variables used in this project.
 
 | Variable                    | Required | Description                                                                                                                                                                                                             |
-| --------------------------- | :------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|-----------------------------|:--------:|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `NEXTAUTH_SECRET`           | **Yes**  | Secret key for NextAuth.js authentication. Possible to generate with `openssl rand -base64 32`.                                                                                                                         |
 | `NEXTAUTH_URL`              | **Yes**  | Base URL of the application used for authentication callbacks.                                                                                                                                                          |
 | `AUTH_KEYCLOAK_CLIENT_ID`   | **Yes**  | Client ID for Keycloak authentication.                                                                                                                                                                                  |
@@ -39,6 +73,8 @@ The **Mind Map Studio** application uses environment variables to configure auth
 | `AUTH_UI_MODE`              |  **No**  | Controls the authentication UI mode: set to `popup` to use a popup window, `tab` to open a new browser tab, or `sameWindow` to authorize in the same window where the mindmap is embedded. Defaults to `popup` if unset |
 
 **Note:** make sure to define all required variables in your `.env` file or provide them through your deployment configuration.
+
+---
 
 ## Authors
 
