@@ -72,7 +72,8 @@ The **Mind Map Studio** application uses environment variables to configure auth
 | `GOOGLE_FONTS_API_KEY`      |  **No**  | A unique API key required to authenticate and enable access to the Google Fonts API. Without it, font family validation cannot be performed.                                                                            |
 | `AUTH_UI_MODE`              |  **No**  | Controls the authentication UI mode: set to `popup` to use a popup window, `tab` to open a new browser tab, or `sameWindow` to authorize in the same window where the mindmap is embedded. Defaults to `popup` if unset |
 
-**Note:** make sure to define all required variables in your `.env` file or provide them through your deployment configuration.
+> [!IMPORTANT]
+> **Note:** make sure to define all required variables in your `.env` file or provide them through your deployment configuration.
 
 ---
 
