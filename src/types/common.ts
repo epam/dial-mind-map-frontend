@@ -1,6 +1,6 @@
+import { ThemesConfig } from './customization';
 import { Graph } from './graph';
 import { Sources } from './sources';
-import { ThemesConfig } from './themes';
 
 export enum EntityType {
   Model = 'model',

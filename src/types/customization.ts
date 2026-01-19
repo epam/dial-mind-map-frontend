@@ -36,6 +36,15 @@ export enum GraphImgResourceKey {
   DefaultBgImg = 'default-bg-image',
 }
 
+export enum ChatImgResourceKey {
+  ChatBgImg = 'chat-bg-image',
+}
+
+export enum GraphLayoutType {
+  Fcose = 'fcose',
+  EllipticRing = 'elliptic-ring',
+}
+
 export enum ChatNodeResourceKey {
   MaskImg = 'mask-image',
 }
@@ -179,6 +188,7 @@ const GraphConfigSchema = z.object({
   font: FontSchema.optional(),
   useNodeIconAsBgImage: z.boolean().optional(),
   maxNodesLimit: z.number().optional(),
+  layout: z.nativeEnum(GraphLayoutType).optional(),
 });
 
 const ChatNodeSchema = z.object({
@@ -195,12 +205,17 @@ const ChatNodeSchema = z.object({
   [ChatNodeResourceKey.MaskImg]: z.string().optional(),
 });
 
+const ChatImagesConfigSchema = z.object({
+  [ChatImgResourceKey.ChatBgImg]: z.string().optional(),
+});
+
 const ChatConfigSchema = z
   .object({
     placeholder: z.string().optional(),
     chatSide: z.enum(['left', 'right']).optional(),
     chatNode: ChatNodeSchema.strict().optional(),
     customStyles: z.string().optional(),
+    images: ChatImagesConfigSchema.optional(),
   })
   .strict();
 
@@ -226,6 +241,11 @@ const IconsSchema = z.object({
   [IconResourceKey.ArrowBackIcon]: z.string().optional(),
 });
 
+const ResponsiveThresholdsSchema = z.object({
+  md: z.number().min(0).optional(),
+  xl: z.number().min(0).optional(),
+});
+
 export const ThemeConfigSchema = z
   .object({
     displayName: z.string().optional(),
@@ -235,6 +255,7 @@ export const ThemeConfigSchema = z
     graph: GraphConfigSchema,
     chat: ChatConfigSchema.optional(),
     references: ReferencesConfigSchema.strict().required(),
+    responsiveThresholds: ResponsiveThresholdsSchema.optional(),
   })
   .strict();
 
@@ -245,7 +266,8 @@ export type BranchColors = z.infer<typeof BranchColorsSchema>;
 export type GraphConfig = z.infer<typeof GraphConfigSchema>;
 export type ThemesConfig = Record<string, ThemeConfig>; // Keyed by theme nameId (e.g., "dark", "light")
 export type NodeShapes = z.infer<typeof NodeShapeSchema>;
-export type CytoscapeNodeTypesStyles = z.infer<typeof CytoscapeNodeTypesStylesSchema>;
 export type CytoscapeLayoutSettings = z.infer<typeof CytoscapeLayoutSettingsScheme>;
 export type CytoscapeNodeStyles = z.infer<typeof CytoscapeNodeStylesSchema>;
+export type CytoscapeNodeTypesStyles = z.infer<typeof CytoscapeNodeTypesStylesSchema>;
 export type CytoscapeNodeStylesWithStates = z.infer<typeof CytoscapeNodeStylesWithStatesSchema>;
+export type ResponsiveThresholds = z.infer<typeof ResponsiveThresholdsSchema>;

@@ -4,11 +4,10 @@ import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from '
 import Tooltip from '@/components/builder/common/Tooltip';
 import ReferenceTooltip from '@/components/chat/reference/components/ReferenceTooltip';
 import { isDocsId, isDocsReference, parseReference } from '@/components/chat/reference/components/utils/parseReference';
-import { ApplicationSelectors } from '@/store/builder/application/application.reducer';
 import { useBuilderSelector } from '@/store/builder/hooks';
 import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
 import { MindmapActions, MindmapSelectors } from '@/store/chat/mindmap/mindmap.reducers';
-import { ChatUIActions, ChatUISelectors } from '@/store/chat/ui/ui.reducers';
+import { ChatUIActions, ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
 import { DocsReference, NodeReference, Reference } from '@/types/graph';
 import { getReferenceName } from '@/utils/app/references';
 
@@ -25,23 +24,22 @@ export const ReferenceRenderer = ({
   const activeFullscreenReferenceId = useChatSelector(MindmapSelectors.selectActiveFullscreenReferenceId);
   const fullscreenReferences = useBuilderSelector(MindmapSelectors.selectFullscreenReferences);
   const isMapHidden = useChatSelector(ChatUISelectors.selectIsMapHidden);
+  const deviceType = useChatSelector(ChatUISelectors.selectDeviceType);
+  const isDesktop = deviceType === DeviceType.Desktop;
+
   const rawText = children?.toString() ?? '';
   const tokens = rawText.split('||');
-  const mindmapFolder = useBuilderSelector(ApplicationSelectors.selectMindmapFolder);
+  const referenceId = useMemo(() => `${rawText}__${messageId}`, [rawText, messageId]);
 
-  const referenceId = useMemo(() => {
-    return `${rawText}__${messageId}`;
-  }, [rawText, messageId]);
-
-  const isActiveFullscreenReference = useMemo(() => {
-    return activeFullscreenReferenceId === referenceId;
-  }, [activeFullscreenReferenceId, referenceId]);
+  const isActiveFullscreenReference = useMemo(
+    () => activeFullscreenReferenceId === referenceId,
+    [activeFullscreenReferenceId, referenceId],
+  );
 
   const found = useMemo(() => {
     return tokens
       .map(token => {
         const ids = parseReference(token, references);
-
         if (!ids) return;
         return isDocsId(ids)
           ? references?.docs.find(
@@ -59,8 +57,7 @@ export const ReferenceRenderer = ({
 
   const first = found[0];
   const baseLabel = isDocsReference(first) ? getReferenceName(first) : first?.label;
-
-  const badgeLabel = found?.length > 1 ? `${baseLabel} +${found?.length - 1}` : baseLabel;
+  const badgeLabel = found?.length > 1 ? `${baseLabel} +${found.length - 1}` : baseLabel;
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -72,13 +69,9 @@ export const ReferenceRenderer = ({
     };
 
     updateWrapped();
-
     window.addEventListener('resize', updateWrapped);
-
-    return () => {
-      window.removeEventListener('resize', updateWrapped);
-    };
-  }, [rawText, badgeLabel, mindmapFolder]);
+    return () => window.removeEventListener('resize', updateWrapped);
+  }, [rawText, badgeLabel]);
 
   const setFullscreenReferences = useCallback(() => {
     dispatch(MindmapActions.setFullscreenInitialSlide(0));
@@ -89,58 +82,38 @@ export const ReferenceRenderer = ({
     }
   }, [dispatch, found, isMapHidden, referenceId]);
 
-  if (!references || !mindmapFolder || !found.length) {
+  if (!references || !found.length) {
     return <span className="text-secondary">{rawText}</span>;
   }
 
+  const badgeClassName = classNames(
+    'reference-badge',
+    'whitespace-nowrap max-w-full truncate',
+    'inline-block cursor-pointer rounded-full px-2 align-middle',
+    !wrapped && (isDesktop ? 'ml-2' : 'ml-1'),
+    'relative top-[-2px]',
+    isDesktop ? 'text-xxs leading-[2]' : 'text-[9px] leading-[1.8]',
+    isActiveFullscreenReference && 'selected',
+  );
+
   return (
     <>
-      <span ref={containerRef} className="relative inline-block h-[1em] align-middle"></span>
+      <span ref={containerRef} className="relative inline-block h-[1em] align-middle" />
       {fullscreenReferences ? (
         <span className="relative inline-block max-w-full align-middle">
-          <span
-            ref={badgeRef}
-            className={classNames(
-              'reference-badge',
-              'whitespace-nowrap max-w-full truncate',
-              'inline-block cursor-pointer rounded-full px-2 align-middle',
-              !wrapped && 'ml-1 xl:ml-2',
-              'relative top-[-2px]',
-              'text-[9px] xl:text-xxs leading-[1.8] xl:leading-[2]',
-              // TODO: Need to clarify with design team about the color
-              isActiveFullscreenReference && 'selected',
-            )}
-            onClick={setFullscreenReferences}
-          >
+          <span ref={badgeRef} className={badgeClassName} onClick={setFullscreenReferences}>
             {badgeLabel}
           </span>
         </span>
       ) : (
         <Tooltip
-          tooltip={
-            <ReferenceTooltip
-              references={found}
-              mindmapFolder={mindmapFolder}
-              referenceId={referenceId}
-              badgeRef={badgeRef}
-            />
-          }
+          tooltip={<ReferenceTooltip references={found} referenceId={referenceId} badgeRef={badgeRef} />}
           triggerClassName="inline-block align-middle max-w-full"
-          contentClassName="p-0 rounded-lg xxs:w-[280px] sm:w-fit sm:max-w-[500px] max-h-[280px] shadow-none"
+          contentClassName="p-0 rounded-lg xxs:w-[280px] sm:w-fit sm:max-w-[500px] shadow-none"
           isTriggerClickable
         >
           <span className="relative inline-block max-w-full align-middle">
-            <span
-              ref={badgeRef}
-              className={classNames(
-                'reference-badge',
-                'whitespace-nowrap max-w-full truncate',
-                'inline-block cursor-pointer rounded-full px-2 align-middle',
-                !wrapped && 'ml-1 xl:ml-2',
-                'relative top-[-2px]',
-                'text-[9px] xl:text-xxs leading-[1.8] xl:leading-[2]',
-              )}
-            >
+            <span ref={badgeRef} className={badgeClassName}>
               {badgeLabel}
             </span>
           </span>

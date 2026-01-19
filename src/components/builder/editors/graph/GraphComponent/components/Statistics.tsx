@@ -8,6 +8,7 @@ import { Space } from '@/components/common/Space/Space';
 import { GraphSelectors } from '@/store/builder/graph/graph.reducers';
 import { useBuilderSelector } from '@/store/builder/hooks';
 import { SourcesSelectors } from '@/store/builder/sources/sources.selectors';
+import { SourceStatus } from '@/types/sources';
 import { isEdge, isNode } from '@/utils/app/graph/typeGuards';
 
 interface StatisticsProps {
@@ -21,7 +22,9 @@ export const Statistics: React.FC<StatisticsProps> = ({ setPinnedStatistics, pin
   const stats = useMemo(() => {
     const nodes = elements.filter(el => isNode(el.data)).length;
     const edges = elements.filter(el => isEdge(el.data)).length;
-    const sourcesCount = sources.length;
+    const sourcesCount = new Set(sources.filter(s => s.active && s.status === SourceStatus.INDEXED).map(s => s.id))
+      .size;
+
     return { nodes, edges, sourcesCount };
   }, [elements, sources]);
 

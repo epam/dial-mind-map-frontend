@@ -82,6 +82,7 @@ export const NodeLayoutSettings = () => {
         onChange={val => debouncedChange('border-width', val)}
         value={getDefault(baseNodeStyles?.['border-width'])}
         placeholder={DefaultGraphNodeBorderWidth.toString()}
+        defaultValue={DefaultGraphNodeBorderWidth}
       />
       <NumericInput
         id="node-padding"
@@ -90,6 +91,7 @@ export const NodeLayoutSettings = () => {
         onChange={val => debouncedChange('padding', val)}
         value={getDefault(baseNodeStyles?.padding)}
         placeholder={DefaultGraphNodePadding.toString()}
+        defaultValue={DefaultGraphNodePadding}
       />
     </div>
   );

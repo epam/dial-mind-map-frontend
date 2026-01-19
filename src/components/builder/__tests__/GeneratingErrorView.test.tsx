@@ -58,7 +58,7 @@ describe('GeneratingErrorView', () => {
     const button = screen.getByRole('button', { name: /return to sources/i });
     fireEvent.click(button);
 
-    expect(mockDispatch).toHaveBeenCalledTimes(2);
+    expect(mockDispatch).toHaveBeenCalledTimes(3);
     expect(mockDispatch).toHaveBeenCalledWith(BuilderActions.setGenerationStatus(GenerationStatus.FINISHED));
     expect(mockDispatch).toHaveBeenCalledWith(BuilderActions.setGeneratingStatus({ title: 'Graph generation' }));
   });

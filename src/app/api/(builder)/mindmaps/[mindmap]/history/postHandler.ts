@@ -7,8 +7,9 @@ import { handleUndoRedo } from '@/utils/server/handleUndoRedo';
 export const changeHistoryHandler = async (
   req: NextRequest,
   authParams: AuthParams,
-  { params }: { params: { mindmap: string } },
+  context: { params: Promise<{ mindmap: string }> },
 ) => {
+  const params = await context.params;
   const url = new URL(req.url);
   const action = url.searchParams.get('action') as HistoryActionTypes;
 

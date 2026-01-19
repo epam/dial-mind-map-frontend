@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { JSX } from 'react';
 
 import { AuthUiMode } from '@/types/auth';
 import { Pages } from '@/types/common';
+import { ThemesConfigs } from '@/types/themes';
 import { ToastType } from '@/types/toasts';
 
 import { BuilderRootState } from '..';
@@ -12,6 +14,7 @@ export type CustomizeView = 'form' | 'json';
 
 export interface UIState {
   theme: string;
+  themesConfig: ThemesConfigs | null;
   currentView: View;
   currentCustomizeView: CustomizeView;
   isNodeEditorOpen: boolean;
@@ -30,6 +33,7 @@ export interface UIState {
   sourceIdToAddVersion?: string;
   sourceIdToApplyToGraph?: string;
   dialChatHost: string;
+  dialIframeAllowedHosts?: string[];
   mindmapIframeTitle: string;
   isAllowApiKeyAuth: boolean;
   providers: string[];
@@ -37,12 +41,14 @@ export interface UIState {
   authUiMode: AuthUiMode;
   isSimpleGenerationModeAvailable: boolean;
   isOffline?: boolean;
+  isServerUnavailable: boolean;
 }
 
 export type UIStoredState = Pick<UIState, 'areGeneretedEdgesShowen' | 'currentView'>;
 
 export const UIInitialState: UIState = {
   theme: 'dark',
+  themesConfig: null,
   currentView: 'graph',
   currentCustomizeView: 'form',
   isNodeEditorOpen: false,
@@ -63,6 +69,7 @@ export const UIInitialState: UIState = {
   authUiMode: AuthUiMode.Popup,
   isSimpleGenerationModeAvailable: false,
   isOffline: false,
+  isServerUnavailable: false,
 };
 
 export const uiSlice = createSlice({
@@ -150,6 +157,9 @@ export const uiSlice = createSlice({
     setIsOffline: (state, { payload }: PayloadAction<boolean>) => {
       state.isOffline = payload;
     },
+    setIsServerUnavailable: (state, { payload }: PayloadAction<boolean>) => {
+      state.isServerUnavailable = payload;
+    },
   },
 });
 
@@ -157,7 +167,16 @@ const rootSelector = (state: BuilderRootState): UIState => state.ui;
 
 const selectTheme = createSelector([rootSelector], state => state.theme);
 
+const selectThemesConfig = createSelector([rootSelector], state => state.themesConfig);
+
+const selectCodeEditorTheme = createSelector([selectTheme, selectThemesConfig], (theme, themesConfig) => {
+  const selectedTheme = theme && themesConfig ? themesConfig.themes.find(({ id }) => id === theme) : undefined;
+  return selectedTheme?.['code-editor-theme'] ?? (theme === 'dark' ? 'vs-dark' : 'vs');
+});
+
 const selectCurrentView = createSelector([rootSelector], state => state.currentView);
+
+const selectDialIframeAllowedHosts = createSelector([rootSelector], state => state.dialIframeAllowedHosts);
 
 const selectCurrentCustomizeView = createSelector([rootSelector], state => state.currentCustomizeView);
 
@@ -208,6 +227,8 @@ const selectAuthUiMode = createSelector([rootSelector], state => state.authUiMod
 
 const selectIsOffline = createSelector([rootSelector], state => state.isOffline);
 
+const selectIsServerUnavailable = createSelector([rootSelector], state => state.isServerUnavailable);
+
 const selectIsSimpleGenerationModeAvailable = createSelector(
   [rootSelector],
   state => state.isSimpleGenerationModeAvailable,
@@ -235,6 +256,7 @@ export const UISelectors = {
   selectAreInboundEdgesShowen,
   selectAreOutboundEdgesShowen,
   selectIsGenNodeInputOpen,
+  selectDialIframeAllowedHosts,
   selectIsAllowApiKey,
   selectProviders,
   selectNavigationTarget,
@@ -242,4 +264,7 @@ export const UISelectors = {
   selectAuthUiMode,
   selectIsSimpleGenerationModeAvailable,
   selectIsOffline,
+  selectThemesConfig,
+  selectCodeEditorTheme,
+  selectIsServerUnavailable,
 };

@@ -1,6 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import '@epam/ai-dial-ui-kit/styles.css';
 
 :root {
   --background: #ffffff;
@@ -349,6 +350,19 @@ pre:has(div.codeblock) {
   border: none !important;
 }
 
+/* 
+  This CSS block is used to style the Markdown editor input area. 
+  It ensures that the editor can have large, scrollable placeholders.
+*/
+.w-md-editor-input {
+  .w-md-editor-text {
+    min-height: 100% !important;
+
+    .w-md-editor-text-input {
+      overflow-y: auto;
+    }
+  }
+}
 
 /* -----------------------------------------------------------------------------
    ⚠️ Public Styling API – Do Not Modify Without Versioning ⚠️
@@ -408,6 +422,8 @@ pre:has(div.codeblock) {
 
   .chat-conversation__message-node {}
 
+  .chat-conversation__message-actions {}
+
   /* Input and submit */
   .chat-footer__input {}
 
@@ -425,4 +441,32 @@ pre:has(div.codeblock) {
 
   /* Reference preview */
   .reference-view {}
+
+  /* Reactions */
+  .reactions {}
+
+  .reactions__button {}
+
+  .reactions__button--like {}
+
+  .reactions__button--dislike {}
+
+  .reactions__button--active {}
+
+  /* Popup */
+  .mindmap-popup {}
+
+  .mindmap-popup__header {}
+
+  .mindmap-popup__content {}
+
+  .mindmap-popup__description {}
+
+  .mindmap-popup__actions {}
+
+  .mindmap-popup__field {}
+
+  .mindmap-popup__field-label {}
+
+  .mindmap-popup__field-input {}
 }

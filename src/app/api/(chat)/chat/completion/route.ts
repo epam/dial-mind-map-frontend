@@ -6,8 +6,8 @@ import { ChatBody, Message, Role } from '@/types/chat';
 import { withAuth } from '@/utils/auth/withAuth';
 import { gerErrorMessageBody, getMessageCustomContent } from '@/utils/server/chat';
 import { logger } from '@/utils/server/logger';
+import { withCaptcha } from '@/utils/server/recaptcha/withCaptcha';
 import { OpenAIStream } from '@/utils/server/stream';
-import { withCaptcha } from '@/utils/server/withCaptcha';
 import { withLogger } from '@/utils/server/withLogger';
 
 const SSE_HEADERS = {

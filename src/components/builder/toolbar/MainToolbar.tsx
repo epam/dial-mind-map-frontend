@@ -9,26 +9,33 @@ import {
   IconRefresh,
   IconSitemap,
 } from '@tabler/icons-react';
+import { useLocalStorageState } from 'ahooks';
 import classNames from 'classnames';
 import groupBy from 'lodash-es/groupBy';
 import sum from 'lodash-es/sum';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 
+import { Space } from '@/components/common/Space/Space';
+import { ToggleSwitch } from '@/components/common/ToggleSwitch/ToggleSwitch';
 import DeleteGeneratedEdgesIcon from '@/icons/delete-generated-edges.svg';
 import GenerateEdgesIcon from '@/icons/generate-edges.svg';
 import GenerateNodeIcon from '@/icons/generate-node.svg';
 import HideGeneratedEdgesIcon from '@/icons/hide-generated-edges.svg';
 import RegenerateIcon from '@/icons/regenerate.svg';
+import { ApplicationSelectors } from '@/store/builder/application/application.reducer';
 import { BuilderActions, BuilderSelectors } from '@/store/builder/builder/builder.reducers';
 import { CompletionSelectors } from '@/store/builder/completion/completion.selectors';
 import { GraphSelectors } from '@/store/builder/graph/graph.reducers';
 import { useBuilderSelector } from '@/store/builder/hooks';
 import { PreferencesSelectors } from '@/store/builder/preferences/preferences.reducers';
+import { SettingsSelectors } from '@/store/builder/settings/settings.reducers';
 import { SourcesSelectors } from '@/store/builder/sources/sources.selectors';
 import { UIActions, UISelectors } from '@/store/builder/ui/ui.reducers';
+import { GenerationType } from '@/types/generate';
 import { DisplayMenuItemProps } from '@/types/menu';
 import { GenerationStatus, SourceStatus } from '@/types/sources';
+import { getTotalActiveSourcesTokens } from '@/utils/app/sources';
 
 import ContextMenu from '../common/ContextMenu';
 import Tooltip from '../common/Tooltip';
@@ -74,13 +81,25 @@ export const MainToolbar = () => {
   const isGenNodeInputOpen = useBuilderSelector(UISelectors.selectIsGenNodeInputOpen);
   const isRelayoutConfirmModalOpen = useBuilderSelector(UISelectors.selectIsRelayoutConfirmModalOpen);
   const isResetThemeConfirmModalOpen = useBuilderSelector(UISelectors.selectIsResetThemeConfirmModalOpen);
+  const generationType = useBuilderSelector(BuilderSelectors.selectGenerationType);
+  const isSimpleGenerationModeAvailable = useBuilderSelector(UISelectors.selectIsSimpleGenerationModeAvailable);
 
-  const { isExportInProgress, onExportClick } = useExportAppearance();
-  const { fileInputRef, isImportInProgress, onFileChange, onImportClick } = useImportAppearance();
+  const currentParams = useBuilderSelector(BuilderSelectors.selectGenerateParams);
 
-  const { isExportMindmapInProgress, onExportMindmapClick } = useExportMindmap();
+  const onSetGenerationType = (checked: boolean) => {
+    dispatch(
+      BuilderActions.updateGenerateParams({
+        ...currentParams,
+        type: checked ? GenerationType.Simple : GenerationType.Universal,
+      }),
+    );
+  };
+
+  const { onExportClick } = useExportAppearance();
+  const { fileInputRef, onFileChange, onImportClick } = useImportAppearance();
+
+  const { onExportMindmapClick } = useExportMindmap();
   const {
-    isImportMindmapInProgress,
     onImportMindmapClick,
     fileMindmapInputRef,
     onFileMindmapChange,
@@ -90,6 +109,10 @@ export const MainToolbar = () => {
 
   const isMessageStreaming = useBuilderSelector(CompletionSelectors.selectIsMessageStreaming);
   const sources = useBuilderSelector(SourcesSelectors.selectSources);
+  const totalActiveSourcesTokens = useMemo(() => getTotalActiveSourcesTokens(sources), [sources]);
+  const tokensLimit = useBuilderSelector(SettingsSelectors.selectGenerationSourcesTokensLimit);
+  const isRegenerationDisabled =
+    generationType === GenerationType.Simple && !!tokensLimit && totalActiveSourcesTokens > tokensLimit;
 
   const buttonClasses =
     'h-[34px] w-[34px] flex justify-center items-center rounded hover:bg-accent-primary-alpha hover:text-accent-primary disabled:cursor-default disabled:text-controls-disable disabled:bg-layer-3';
@@ -247,18 +270,16 @@ export const MainToolbar = () => {
         dataQa: 'export-theme',
         name: 'Export theme (.zip)',
         Icon: IconFileArrowRight,
-        disabled: isExportInProgress,
         onClick: onExportClick,
       },
       {
         dataQa: 'import-theme',
         name: 'Import theme (.zip)',
         Icon: IconFileArrowLeft,
-        disabled: isImportInProgress,
         onClick: onImportClick,
       },
     ],
-    [dispatch, isExportInProgress, isImportInProgress, onExportClick, onImportClick],
+    [dispatch, onExportClick, onImportClick],
   );
 
   const sourcesButtons: DisplayMenuItemProps[] = useMemo(
@@ -267,25 +288,16 @@ export const MainToolbar = () => {
         dataQa: 'export-mindmap',
         name: 'Export mindmap (.zip)',
         Icon: IconFileArrowRight,
-        disabled: isExportMindmapInProgress || !isFinishedGenerationStatus,
         onClick: onExportMindmapClick,
       },
       {
         dataQa: 'import-mindmap',
         name: 'Import mindmap (.zip)',
         Icon: IconFileArrowLeft,
-        disabled: isImportMindmapInProgress,
         onClick: () => setIsImportMindmapConfirmModalOpen(true),
       },
     ],
-    [
-      isExportMindmapInProgress,
-      isImportMindmapInProgress,
-      onExportMindmapClick,
-      onImportMindmapClick,
-      setIsImportMindmapConfirmModalOpen,
-      isFinishedGenerationStatus,
-    ],
+    [onExportMindmapClick, setIsImportMindmapConfirmModalOpen],
   );
 
   const renderMenuWithHiddenElements = useCallback(() => {
@@ -306,10 +318,25 @@ export const MainToolbar = () => {
     );
   }, [elements, elementsGroupsNames, visibleElementsCount]);
 
+  const applicationReference = useBuilderSelector(ApplicationSelectors.selectApplication)?.reference;
+  const [generationErrorSeen, setGenerationErrorSeen] = useLocalStorageState(`generation-error-seen`, {
+    defaultValue: {},
+  });
+
+  const setNotSeenError = useCallback(() => {
+    if (applicationReference) {
+      setGenerationErrorSeen({
+        ...generationErrorSeen,
+        [applicationReference]: false,
+      });
+    }
+  }, [applicationReference, generationErrorSeen, setGenerationErrorSeen]);
+
   const handleRegenerate = useCallback(() => {
     setIsOpenRegenerateModal(false);
+    setNotSeenError();
     dispatch(BuilderActions.regenerateMindmap());
-  }, [dispatch]);
+  }, [dispatch, setNotSeenError]);
 
   const hasFailedSource = useMemo(() => {
     return sources.some(
@@ -318,6 +345,16 @@ export const MainToolbar = () => {
         (source.status === SourceStatus.FAILED || source.status === SourceStatus.INPROGRESS),
     );
   }, [sources]);
+
+  const getRegenerationButtonTooltip = () => {
+    if (isRegenerationDisabled) {
+      return `Token limit of ${new Intl.NumberFormat().format(tokensLimit)} exceeded. Adjust your sources.`;
+    }
+
+    return sources.length === 0 || hasFailedSource
+      ? 'Cannot regenerate while sources are processing or have errors. Please resolve all sources first.'
+      : 'Regenerate graph from scratch';
+  };
 
   const renderActions = () => {
     if (isFinishedGenerationStatus && pathname === LinkPathname.Content) {
@@ -379,12 +416,8 @@ export const MainToolbar = () => {
             <div className="border-l border-l-tertiary px-2">
               <IconButton
                 Icon={RegenerateIcon}
-                tooltip={
-                  sources.length === 0 || hasFailedSource
-                    ? 'Cannot regenerate while sources are processing or have errors. Please resolve all sources first.'
-                    : 'Regenerate graph from scratch'
-                }
-                disabled={sources.length === 0 || hasFailedSource}
+                tooltip={getRegenerationButtonTooltip()}
+                disabled={sources.length === 0 || hasFailedSource || isRegenerationDisabled}
                 onClick={() => setIsOpenRegenerateModal(true)}
                 dataQa="regenerate-graph"
               />
@@ -416,7 +449,29 @@ export const MainToolbar = () => {
             />
           </div>
           <div className="grow" />
-
+          {isSimpleGenerationModeAvailable && (
+            <Space size="small" align="center">
+              <Tooltip
+                tooltip={
+                  generationStatus !== GenerationStatus.NOT_STARTED
+                    ? 'Mode switching is only available before generation'
+                    : 'Switch graph generation mode'
+                }
+                contentClassName="text-sm px-2 text-primary"
+              >
+                <ToggleSwitch
+                  isOn={generationType === GenerationType.Simple}
+                  disabled={generationStatus !== GenerationStatus.NOT_STARTED}
+                  switchOnText="ON"
+                  switchOFFText="OFF"
+                  handleSwitch={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    onSetGenerationType(e.target.checked);
+                  }}
+                />
+              </Tooltip>
+              <label className="flex min-w-20 text-sm text-primary">Lite mode</label>
+            </Space>
+          )}
           <div className="border-l border-l-tertiary">
             <UndoRedoSection buttonClasses={buttonClasses} />
           </div>

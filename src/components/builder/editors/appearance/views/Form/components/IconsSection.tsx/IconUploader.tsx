@@ -42,7 +42,6 @@ export const IconUploader = ({
   const uploadStatus = useBuilderSelector(UploadResourceStatusSelectors.selectUploadStatus(type));
   const theme = useBuilderSelector(UISelectors.selectTheme);
   const appName = useBuilderSelector(ApplicationSelectors.selectApplicationName);
-  const appFolder = useBuilderSelector(ApplicationSelectors.selectMindmapFolder);
 
   const [name, setName] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -52,7 +51,7 @@ export const IconUploader = ({
     if (value) {
       const fileName = value.split('/').pop() || 'icon';
       setName(fileName);
-      setPreviewUrl(getAppearanceFileUrl(appName, theme, value, appFolder));
+      setPreviewUrl(getAppearanceFileUrl(appName, theme, value));
     } else {
       setName('');
       setPreviewUrl(null);

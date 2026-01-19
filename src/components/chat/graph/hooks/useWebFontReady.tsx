@@ -16,8 +16,8 @@ export const useWebFontReady = (
   const [status, setStatus] = useState<FontStatus>('loading');
   const [activeFont, setActiveFont] = useState<string>(fontFamily);
 
-  const intervalRef = useRef<number>();
-  const timeoutRef = useRef<number>();
+  const intervalRef = useRef<number>(undefined);
+  const timeoutRef = useRef<number>(undefined);
 
   useEffect(() => {
     clearInterval(intervalRef.current);

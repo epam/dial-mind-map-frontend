@@ -21,7 +21,7 @@ export const LinkRenderer = ({ href, children }: { href?: string; children?: Rea
   }
 
   return (
-    <div className="relative h-0 w-full overflow-hidden pb-[56.25%]">
+    <span className="relative block h-0 w-full overflow-hidden pb-[56.25%]">
       <iframe
         className="absolute left-0 top-0 size-full border-0"
         src={`https://${YoutubeDomain}/embed/${videoId}`}
@@ -30,6 +30,6 @@ export const LinkRenderer = ({ href, children }: { href?: string; children?: Rea
         referrerPolicy="strict-origin-when-cross-origin"
         allowFullScreen
       ></iframe>
-    </div>
+    </span>
   );
 };

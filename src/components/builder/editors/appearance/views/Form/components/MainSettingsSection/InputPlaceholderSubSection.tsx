@@ -52,7 +52,7 @@ export const InputPlaceholderSubSection = () => {
 
   return (
     <div className="flex flex-col">
-      <label htmlFor="chat-placeholder" className="text-xs text-secondary">
+      <label htmlFor="chat-placeholder" className="w-fit text-xs text-secondary">
         Input placeholder
       </label>
       <input

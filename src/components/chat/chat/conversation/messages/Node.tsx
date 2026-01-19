@@ -7,7 +7,7 @@ import { ConversationActions } from '@/store/chat/conversation/conversation.redu
 import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
 import { MindmapActions } from '@/store/chat/mindmap/mindmap.reducers';
 import { PlaybackSelectors } from '@/store/chat/playback/playback.reducer';
-import { ChatUISelectors } from '@/store/chat/ui/ui.reducers';
+import { ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
 import { ChatNodeType } from '@/types/customization';
 import { getAppearanceFileUrl } from '@/utils/app/themes';
 
@@ -29,12 +29,16 @@ interface Props {
   hasVisitedOpacity?: boolean;
 }
 
-const getSizeStyles = (size: 'small' | 'default') => {
+const getSizeClasses = (size: 'small' | 'default', isDesktop: boolean) => {
   switch (size) {
     case 'small':
       return 'py-1 px-2 text-xs';
     default:
-      return 'py-[6px] px-2 text-xs xl:text-sm xl:px-3 hover:outline hover:outline-[2.5px] hover:outline-offset-[-1px]';
+      return classNames(
+        'py-[6px]',
+        isDesktop ? 'px-3 text-sm' : 'px-2 text-xs',
+        'hover:outline hover:outline-[2.5px] hover:outline-offset-[-1px]',
+      );
   }
 };
 
@@ -58,13 +62,15 @@ export const Node = ({
   const dispatch = useChatDispatch();
   const theme = useChatSelector(ChatUISelectors.selectThemeName);
   const appName = useChatSelector(ApplicationSelectors.selectApplicationName);
-  const appFolder = useChatSelector(ApplicationSelectors.selectMindmapFolder);
-  const maskImagePath = maskImage && getAppearanceFileUrl(appName, theme, maskImage, appFolder);
+  const maskImagePath = maskImage && getAppearanceFileUrl(appName, theme, maskImage);
   const isPlayback = useChatSelector(PlaybackSelectors.selectIsPlayback);
+
+  const deviceType = useChatSelector(ChatUISelectors.selectDeviceType);
+  const isDesktop = deviceType === DeviceType.Desktop;
 
   const style: CSSProperties = { color: textColor };
   if (type === ChatNodeType.Imaged && image) {
-    style.backgroundImage = `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url(${image})`;
+    style.backgroundImage = `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("${image}")`;
     style.backgroundRepeat = 'no-repeat';
     style.backgroundPosition = 'center';
     style.backgroundSize = 'cover';
@@ -72,8 +78,8 @@ export const Node = ({
 
     if (maskImagePath) {
       style.position = 'relative';
-      style.WebkitMaskImage = `url(${maskImagePath})`;
-      style.maskImage = `url(${maskImagePath})`;
+      style.WebkitMaskImage = `url("${maskImagePath}")`;
+      style.maskImage = `url("${maskImagePath}")`;
       style.maskSize = 'cover';
       style.maskRepeat = 'no-repeat';
       style.maskPosition = 'center';
@@ -98,7 +104,7 @@ export const Node = ({
           width={16}
           height={16}
           alt="Arrow back icon"
-          src={getAppearanceFileUrl(appName, theme, arrowBackIconName, appFolder)}
+          src={getAppearanceFileUrl(appName, theme, arrowBackIconName)}
         />
       );
     }
@@ -117,8 +123,8 @@ export const Node = ({
         }
       }}
       className={classNames([
-        getSizeStyles(size),
-        !radius && 'rounded-lg xl:rounded-xl',
+        getSizeClasses(size, isDesktop),
+        !radius && (isDesktop ? 'rounded-xl' : 'rounded-lg'),
         'chat-conversation__message-node',
       ])}
       style={style}

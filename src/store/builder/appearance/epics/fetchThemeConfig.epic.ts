@@ -1,25 +1,18 @@
-import { concatMap, EMPTY, filter, from, of } from 'rxjs';
+import { concatMap, filter, from, of } from 'rxjs';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { ThemeConfig } from '@/types/customization';
 import { HTTPMethod } from '@/types/http';
 import { BuilderRootEpic } from '@/types/store';
 
 import { ApplicationSelectors } from '../../application/application.reducer';
 import { UIActions } from '../../ui/ui.reducers';
-import { handleRequestNew } from '../../utils/handleRequest';
+import { handleRequest } from '../../utils/handleRequest';
 import { AppearanceActions } from '../appearance.reducers';
 
 export const fetchThemeConfigEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
     filter(AppearanceActions.fetchThemeConfig.match),
     concatMap(({ payload }) => {
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
       const name = ApplicationSelectors.selectApplicationName(state$.value);
 
       const responseProcessor = (resp: Response) =>
@@ -29,9 +22,9 @@ export const fetchThemeConfigEpic: BuilderRootEpic = (action$, state$) =>
           }),
         );
 
-      return handleRequestNew({
+      return handleRequest({
         url: `/api/mindmaps/${encodeURIComponent(name)}/appearances/themes/${payload.theme}`,
-        options: { method: HTTPMethod.GET, headers: { [MindmapUrlHeaderName]: mindmapFolder } },
+        options: { method: HTTPMethod.GET },
         state$,
         responseProcessor,
         failureActions: [

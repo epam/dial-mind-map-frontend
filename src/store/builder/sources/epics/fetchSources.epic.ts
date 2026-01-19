@@ -1,7 +1,6 @@
 import { catchError, EMPTY, filter, from, map, mergeMap, switchMap } from 'rxjs';
 import { fromFetch } from 'rxjs/fetch';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { Sources } from '@/types/sources';
 import { BuilderRootEpic } from '@/types/store';
 
@@ -22,11 +21,9 @@ export const fetchSourcesEpic: BuilderRootEpic = (action$, state$) =>
       prevGenStatus: BuilderSelectors.selectGenerationStatus(state$.value),
     })),
     switchMap(({ name, prevSources, prevGenStatus }) => {
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-
       return fromFetch(`/api/mindmaps/${encodeURIComponent(name)}/documents`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json', [MindmapUrlHeaderName]: mindmapFolder },
+        headers: { 'Content-Type': 'application/json' },
       }).pipe(
         mergeMap(resp => checkForUnauthorized(resp)),
         mergeMap(resp => {

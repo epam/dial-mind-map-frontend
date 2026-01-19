@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 
+import { useChatSelector } from '@/store/chat/hooks';
 import { DocsReference } from '@/types/graph';
 
 import { ImageContent } from '../ImageContent';
@@ -13,7 +14,12 @@ jest.mock('@/utils/app/file', () => ({
   constructPath: (...args: string[]) => args.join('/'),
 }));
 
+jest.mock('@/store/chat/hooks', () => ({
+  useChatSelector: jest.fn(),
+}));
+
 describe('ImageContent Component', () => {
+  const name = 'test-app';
   const reference: DocsReference = {
     content: 'image.jpg',
     doc_name: 'document.pdf',
@@ -26,17 +32,21 @@ describe('ImageContent Component', () => {
     version: 1,
     source_name: 'source',
   };
-  const folderPath = 'folder';
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    (useChatSelector as jest.Mock).mockReturnValue(name);
+  });
 
   test('renders image with correct src and alt', () => {
-    render(<ImageContent reference={reference} folderPath={folderPath} />);
+    render(<ImageContent reference={reference} />);
     const image = screen.getByRole('img', { name: /document.pdf/i });
     expect(image).toBeInTheDocument();
-    expect(image).toHaveAttribute('src', '/api/folder/image.jpg');
+    expect(image).toHaveAttribute('src', '/api/mindmaps/test-app/image');
   });
 
   test('applies correct class when isFullscreenReference is true', () => {
-    render(<ImageContent reference={reference} folderPath={folderPath} isFullscreenReference />);
+    render(<ImageContent reference={reference} isFullscreenReference />);
     const image = screen.getByRole('img', { name: /document.pdf/i });
     expect(image).toHaveClass('w-full', 'max-h-full');
   });

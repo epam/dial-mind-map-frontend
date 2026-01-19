@@ -16,19 +16,20 @@ export const sanitizeAndReportFiles = (
   allowedTypes: string[],
   maxFileSize: number,
   allowedExtensions?: string[],
+  allowSpecialSymbols: boolean = false,
 ): File[] => {
-  const incorrectSizeFiles: string[] = getFilesWithInvalidFileSize(files, maxFileSize).map(file => file.name);
-  const incorrectTypeFiles: string[] = getFilesWithInvalidFileType(files, allowedTypes).map(file => file.name);
+  const incorrectSizeFiles = getFilesWithInvalidFileSize(files, maxFileSize).map(f => f.name);
+  const incorrectTypeFiles = getFilesWithInvalidFileType(files, allowedTypes).map(f => f.name);
 
-  const incorrectExtensionFiles: string[] = allowedExtensions?.length
-    ? getFilesWithInvalidFileExtension(files, allowedExtensions).map(file => file.name)
+  const incorrectExtensionFiles = allowedExtensions?.length
+    ? getFilesWithInvalidFileExtension(files, allowedExtensions).map(f => f.name)
     : [];
 
-  const invalidFileNames = new Set([...incorrectSizeFiles, ...incorrectTypeFiles, ...incorrectExtensionFiles]);
+  const basicInvalidNames = new Set([...incorrectSizeFiles, ...incorrectTypeFiles, ...incorrectExtensionFiles]);
 
-  let filteredFiles = files.filter(file => !invalidFileNames.has(file.name));
+  let filteredFiles = files.filter(f => !basicInvalidNames.has(f.name));
 
-  if (incorrectSizeFiles.length > 0) {
+  if (incorrectSizeFiles.length) {
     dispatch(
       UIActions.showErrorToast(
         `Max file size up to ${bytes.format(maxFileSize, { unitSeparator: ' ' })}. Next files haven't been uploaded: ${incorrectSizeFiles.join(', ')}`,
@@ -36,44 +37,44 @@ export const sanitizeAndReportFiles = (
     );
   }
 
-  if (incorrectTypeFiles.length > 0) {
+  if (incorrectTypeFiles.length) {
     dispatch(
       UIActions.showErrorToast(`You've trying to upload files with incorrect type: ${incorrectTypeFiles.join(', ')}`),
     );
   }
 
   const { filesWithNotAllowedSymbols, filesWithDotInTheEnd } = getFilesWithInvalidFileName(filteredFiles);
-  const filesWithNotAllowedSymbolsNames = filesWithNotAllowedSymbols.map(f => f.name);
-  const filesWithDotInTheEndNames = filesWithDotInTheEnd.map(f => f.name);
 
-  if (filesWithNotAllowedSymbolsNames.length && filesWithDotInTheEndNames.length) {
+  const notAllowedNames = allowSpecialSymbols ? [] : filesWithNotAllowedSymbols.map(f => f.name);
+  const dotAtEndNames = filesWithDotInTheEnd.map(f => f.name);
+
+  if (notAllowedNames.length && dotAtEndNames.length) {
     dispatch(
       UIActions.showErrorToast(
-        `The symbols ${notAllowedSymbols} and a dot at the end are not allowed in file name. Please rename or delete them from uploading files list: ${filesWithNotAllowedSymbolsNames.join(', ')}`,
+        `The symbols ${notAllowedSymbols} and a dot at the end are not allowed in file name. Please rename or delete them from uploading files list: ${notAllowedNames.concat(dotAtEndNames).join(', ')}`,
       ),
     );
   } else {
-    if (filesWithNotAllowedSymbolsNames.length) {
+    if (notAllowedNames.length) {
       dispatch(
         UIActions.showErrorToast(
-          `The symbols ${notAllowedSymbols} are not allowed in file name. Please rename or delete them from uploading files list: ${filesWithNotAllowedSymbolsNames.join(', ')}`,
+          `The symbols ${notAllowedSymbols} are not allowed in file name. Please rename or delete them from uploading files list: ${notAllowedNames.join(', ')}`,
         ),
       );
     }
-    if (filesWithDotInTheEndNames.length) {
+
+    if (dotAtEndNames.length) {
       dispatch(
         UIActions.showErrorToast(
-          `Using a dot at the end of a name is not permitted. Please rename or delete them from uploading files list: ${filesWithDotInTheEndNames.join(', ')}`,
+          `Using a dot at the end of a name is not permitted. Please rename or delete them from uploading files list: ${dotAtEndNames.join(', ')}`,
         ),
       );
     }
   }
 
-  const allInvalidFiles = invalidFileNames.union(
-    new Set([...filesWithNotAllowedSymbolsNames, ...filesWithDotInTheEndNames]),
-  );
+  const allInvalid = new Set([...basicInvalidNames, ...notAllowedNames, ...dotAtEndNames]);
 
-  filteredFiles = files.filter(file => !allInvalidFiles.has(file.name));
+  filteredFiles = files.filter(f => !allInvalid.has(f.name));
 
   return filteredFiles;
 };

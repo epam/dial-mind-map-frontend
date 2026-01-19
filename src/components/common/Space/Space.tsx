@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import React, { useMemo } from 'react';
+import React, { Ref, useMemo } from 'react';
 
 interface SpaceProps {
   /** Content elements to be spaced */
@@ -33,6 +33,8 @@ interface SpaceProps {
   fullWidth?: boolean;
   /** Data-testid for testing purposes */
   dataTestId?: string;
+  /** Ref object */
+  ref?: Ref<HTMLDivElement>;
 }
 
 const gapMapping: Record<string, string> = {
@@ -52,6 +54,7 @@ export const Space: React.FC<SpaceProps> = ({
   align = 'center',
   justify = 'normal',
   fullWidth = false,
+  ref,
 }) => {
   const flexDirection = useMemo(() => (direction === 'horizontal' ? 'flex-row' : 'flex-col'), [direction]);
 
@@ -79,7 +82,7 @@ export const Space: React.FC<SpaceProps> = ({
   );
 
   return (
-    <div className={spaceClass} style={computedStyle} data-testid={dataTestId}>
+    <div className={spaceClass} style={computedStyle} data-testid={dataTestId} ref={ref}>
       {children}
     </div>
   );

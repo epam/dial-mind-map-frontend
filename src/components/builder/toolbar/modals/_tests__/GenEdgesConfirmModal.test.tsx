@@ -5,7 +5,7 @@ import { createBuilderStore } from '@/store/builder';
 
 import { GenEdgesConfirmModal } from '../GenEdgesConfirmModal';
 
-jest.mock('../../../common/Modal', () => ({
+jest.mock('@/components/common/Modal', () => ({
   __esModule: true,
   default: ({ children }: any) => <div>{children}</div>,
 }));
@@ -62,11 +62,11 @@ describe('GenEdgesConfirmModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Complement edges/i)).toBeInTheDocument();
+      expect(screen.getByText(/Generate complement edges/i)).toBeInTheDocument();
     });
-    expect(screen.getByText(/Complement edges to complete the graph/i)).toBeInTheDocument();
+    expect(screen.getByText(/Generate complement edges to complete the graph/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Cancel/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Complement/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Generate/i })).toBeInTheDocument();
   });
 
   test('closes modal when Cancel is clicked', async () => {
@@ -98,9 +98,9 @@ describe('GenEdgesConfirmModal', () => {
       </Provider>,
     );
 
-    await screen.findByRole('button', { name: /Complement/i });
+    await screen.findByRole('button', { name: /Generate/i });
 
-    fireEvent.click(screen.getByRole('button', { name: /Complement/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Generate/i }));
 
     await waitFor(() => {
       expect(store.getState().ui.isGenEdgesConfirmModalOpen).toBe(false);

@@ -83,6 +83,7 @@ export function ConnectionsSelector({ type }: { type: EdgeDirectionType }) {
               id: getEdgeId(focusNodeId, newNeighborId),
               source,
               target,
+              type: EdgeType.Manual,
             }),
           );
         } else if (newNeighbors.length > 1) {

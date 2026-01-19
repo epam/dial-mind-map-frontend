@@ -1,11 +1,10 @@
-import { UnknownAction } from '@reduxjs/toolkit';
 import { combineEpics } from 'redux-observable';
-import { catchError, concat, filter, forkJoin, from, map, mergeMap, of, switchMap, take, tap } from 'rxjs';
+import { catchError, concat, EMPTY, filter, from, ignoreElements, map, mergeMap, of, switchMap, take, tap } from 'rxjs';
 import { fromFetch } from 'rxjs/fetch';
 
 import { Application } from '@/types/application';
 import { BuilderRootEpic } from '@/types/store';
-import { generateMindmapFolderPath } from '@/utils/app/application';
+import { getAppPathWithEncodedAppName } from '@/utils/app/application';
 
 import { AppearanceActions } from '../appearance/appearance.reducers';
 import { HistoryActions } from '../history/history.reducers';
@@ -19,34 +18,33 @@ const fetchApplicationEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
     filter(ApplicationActions.fetchApplicationStart.match),
     switchMap(({ payload: applicationId }) =>
-      fromFetch(`/api/${applicationId}`, { method: 'GET' }).pipe(
+      fromFetch(`/api/${getAppPathWithEncodedAppName(applicationId)}`, { method: 'GET' }).pipe(
         mergeMap(resp => checkForUnauthorized(resp)),
         switchMap(response => {
-          if (!response.ok) {
-            throw new Error(`Failed to fetch application: ${response.status}`);
-          }
           return response.json();
         }),
         switchMap((data: Application) => {
           const theme = UISelectors.selectTheme(state$.value);
-          const baseActions: UnknownAction[] = [
-            ApplicationActions.fetchApplicationSuccess(data),
-            SourcesActions.initSources({ name: data.name ?? data.application ?? '' }),
-            HistoryActions.fetchUndoRedo(),
-            AppearanceActions.initTheme({ theme }),
-          ];
-          if (!data.application_properties?.mindmap_folder) {
-            baseActions.push(ApplicationActions.updateApplication({ name: data.name ?? '' }));
-          }
+          const needsUpdate = !data.application_properties;
 
           return concat(
-            from(baseActions),
-            forkJoin([
-              action$.pipe(filter(AppearanceActions.fetchThemeConfigFinished.match), take(1)),
-              data.application_properties?.mindmap_folder
-                ? of(true)
-                : action$.pipe(filter(ApplicationActions.updateApplicationSuccess.match), take(1)),
-            ]).pipe(map(() => ApplicationActions.setIsApplicationReady(true))),
+            of(ApplicationActions.fetchApplicationSuccess(data)),
+            needsUpdate
+              ? concat(
+                  of(ApplicationActions.updateApplication({ name: data.name ?? data.application ?? '' })),
+                  action$.pipe(filter(ApplicationActions.updateApplicationSuccess.match), take(1), ignoreElements()),
+                )
+              : EMPTY,
+            from([
+              SourcesActions.initSources({ name: data.name ?? data.application ?? '' }),
+              HistoryActions.fetchUndoRedo(),
+              AppearanceActions.initTheme({ theme }),
+            ]),
+            action$.pipe(
+              filter(AppearanceActions.fetchThemeConfigFinished.match),
+              take(1),
+              map(() => ApplicationActions.setIsApplicationReady(true)),
+            ),
           );
         }),
         globalCatchUnauthorized(),
@@ -68,13 +66,13 @@ const updateApplicationEpic: BuilderRootEpic = (action$, state$) =>
         return of(ApplicationActions.updateApplicationFailure('No application found'));
       }
 
-      const mindmapFolderPath = generateMindmapFolderPath(application);
       const newApplication: Application = {
         ...application,
-        application_properties: {
-          mindmap_folder: mindmapFolderPath,
-        },
       };
+
+      if (!newApplication.application_properties) {
+        newApplication.application_properties = {};
+      }
 
       return fromFetch(`/api/${newApplication.name}`, {
         method: 'PUT',
@@ -92,14 +90,13 @@ const updateApplicationEpic: BuilderRootEpic = (action$, state$) =>
         }),
         tap(action => {
           if (action.type === ApplicationActions.updateApplicationSuccess.type) {
-            const dialHost = UISelectors.selectDialChatHost(state$.value);
             const mindmapIframeTitle = UISelectors.selectMindmapIframeTitle(state$.value);
             window?.parent.postMessage(
               {
                 type: `${mindmapIframeTitle}/UPDATED_APPLICATION_SUCCESS`,
                 payload: { application: newApplication },
               },
-              dialHost,
+              '*',
             );
           }
         }),

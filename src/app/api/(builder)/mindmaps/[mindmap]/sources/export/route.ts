@@ -1,57 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { errorsMessages } from '@/constants/errors';
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
+import { decodeAppPathSafely } from '@/utils/app/application';
 import { withAuth } from '@/utils/auth/withAuth';
 import { getApiHeaders } from '@/utils/server/get-headers';
 import { logger } from '@/utils/server/logger';
 import { withLogger } from '@/utils/server/withLogger';
 
-async function handleGet(req: NextRequest, authParams: AuthParams, { params }: { params: { mindmap: string } }) {
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+async function handleGet(
+  req: NextRequest,
+  authParams: AuthParams,
+  context: { params: Promise<{ mindmap: string }> },
+): Promise<NextResponse> {
+  const { mindmap } = await context.params;
+
   try {
-    const mindmapId = decodeURIComponent(params.mindmap);
-    const backendUrl = `${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/sources/export`;
-    const headers = getApiHeaders({
-      authParams,
-      [MindmapUrlHeaderName]: req.headers.get(MindmapUrlHeaderName) ?? undefined,
+    const mindmapId = decodeAppPathSafely(mindmap);
+    const backendUrl = `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/sources/export`;
+
+    const proxyRes = await fetch(backendUrl, {
+      headers: {
+        ...getApiHeaders({ authParams }),
+        'Accept-Encoding': 'identity',
+      },
+      cache: 'no-store',
     });
 
-    const proxyRes = await fetch(backendUrl, { headers });
-
     if (!proxyRes.ok) {
-      const errRespText = await proxyRes.text();
-      logger.warn(
-        {
-          status: proxyRes.status,
-          response: errRespText,
-          mindmap: mindmapId,
-        },
-        `Error exporting mindmap ${mindmapId}`,
-      );
+      const text = await proxyRes.text().catch(() => '');
       if (proxyRes.status === 401) {
         return new NextResponse(errorsMessages.unauthorized, { status: 401 });
       }
-      return new NextResponse(errRespText, { status: proxyRes.status ?? 500 });
+      return new NextResponse(text || 'Upstream error', { status: proxyRes.status || 500 });
     }
 
-    const resHeaders = new Headers(proxyRes.headers);
-    resHeaders.delete('content-encoding');
-    resHeaders.set('content-type', 'application/zip');
+    const body = proxyRes.body;
+    if (!body) return new NextResponse('Upstream has no body', { status: 502 });
 
-    const contentType = proxyRes.headers.get('Content-Type') || 'application/octet-stream';
-    const contentDisposition = proxyRes.headers.get('Content-Disposition') || 'attachment';
-    resHeaders.set('Content-Type', contentType);
-    resHeaders.set('Content-Disposition', contentDisposition);
+    const resHeaders = new Headers();
+    for (const [headerKey, headerValue] of proxyRes.headers) {
+      const lowerHeaderKey = headerKey.toLowerCase();
+      if (
+        lowerHeaderKey === 'content-type' ||
+        lowerHeaderKey === 'content-disposition' ||
+        lowerHeaderKey === 'cache-control' ||
+        lowerHeaderKey === 'etag' ||
+        lowerHeaderKey === 'last-modified' ||
+        lowerHeaderKey === 'accept-ranges'
+      ) {
+        resHeaders.set(headerKey, headerValue);
+      }
+    }
+    if (!resHeaders.has('content-type')) resHeaders.set('content-type', 'application/zip');
+    resHeaders.set('X-Accel-Buffering', 'no');
 
-    const buffer = await proxyRes.arrayBuffer();
-
-    return new NextResponse(Buffer.from(buffer), {
-      status: proxyRes.status,
-      headers: resHeaders,
-    });
-  } catch (error) {
-    logger.error(`Error exporting mindmap ${params.mindmap}:`, error);
+    return new NextResponse(body, { status: proxyRes.status, headers: resHeaders });
+  } catch (e) {
+    logger.error(`Error exporting mindmap ${mindmap}:`, e);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

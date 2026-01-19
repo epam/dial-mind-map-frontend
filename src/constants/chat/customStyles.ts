@@ -44,6 +44,11 @@ export const CustomStylesPlaceholder = `.chat-container {
           /* e.g., size, hover effects, font styles, interaction states */
         }
       }
+
+      .chat-conversation__message-actions {
+        /* Wrapper for message actions like retry button and reactions buttons block */
+        /* e.g., layout direction, spacing between nodes, alignment */
+      }
     }
   }
 
@@ -94,4 +99,70 @@ export const CustomStylesPlaceholder = `.chat-container {
 .reference-view {
   /* Main container for the reference fullscreen preview/view element */
   /* e.g., border styles, shadow, padding, positioning */
-}`;
+}
+
+.reactions {
+  /* Container for like/dislike actions */
+  /* e.g., layout, spacing, alignment */
+
+  .reactions__button {
+    /* Base reaction button */
+    /* e.g., size, shape, background, transitions */
+  }
+
+  .reactions__button--like {
+    /* Like button variant */
+    /* e.g., color, icon styling */
+  }
+
+  .reactions__button--dislike {
+    /* Dislike button variant */
+    /* e.g., color, icon styling */
+  }
+
+  .reactions__button--active {
+    /* Active (selected) reaction state */
+    /* e.g., highlight color, emphasis */
+  }
+}
+
+.mindmap-popup {
+  /* Base container for Mindmap-related popups */
+  /* e.g., border, shadow, radius, width */
+
+  .mindmap-popup__header {
+    /* Popup header area */
+    /* e.g., font weight, alignment */
+  }
+
+  .mindmap-popup__content {
+    /* Main popup content wrapper */
+    /* e.g., spacing, layout */
+  }
+
+  .mindmap-popup__description {
+    /* Descriptive text inside popup */
+    /* e.g., color, font-size */
+  }
+
+  .mindmap-popup__field {
+    /* Form field wrapper (label + input) */
+    /* e.g., spacing, positioning */
+  }
+
+  .mindmap-popup__field-label {
+    /* Label element for a form field */
+    /* e.g., font-size, color, floating or overlapping position */
+  }
+
+  .mindmap-popup__field-input {
+    /* Form control element (input, textarea, etc.) */
+    /* e.g., padding, border, background, resize behavior */
+  }
+
+  .mindmap-popup__actions {
+    /* Popup action buttons container */
+    /* e.g., alignment, spacing */
+  }
+}
+`;

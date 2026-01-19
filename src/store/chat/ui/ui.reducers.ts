@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { JSX } from 'react';
 
 import { AuthUiMode } from '@/types/auth';
 import { ToastType } from '@/types/toasts';
@@ -18,6 +19,7 @@ export interface UIState {
   isChatHidden: boolean;
   deviceType: DeviceType;
   dialChatHost: string;
+  dialIframeAllowedHosts?: string[];
   mindmapIframeTitle: string;
   isPreview?: boolean;
   isAllowApiKeyAuth: boolean;
@@ -27,6 +29,7 @@ export interface UIState {
   authUiMode: AuthUiMode;
   isOffline?: boolean;
   isFitGraphAvailable: boolean;
+  isServerUnavailable: boolean;
 }
 
 const initialState: UIState = {
@@ -42,6 +45,7 @@ const initialState: UIState = {
   authUiMode: AuthUiMode.Popup,
   isOffline: false,
   isFitGraphAvailable: false,
+  isServerUnavailable: false,
 };
 
 export const chatUISlice = createSlice({
@@ -83,6 +87,9 @@ export const chatUISlice = createSlice({
     setIsOffline: (state, { payload }: PayloadAction<boolean>) => {
       state.isOffline = payload;
     },
+    setIsServerUnavailable: (state, { payload }: PayloadAction<boolean>) => {
+      state.isServerUnavailable = payload;
+    },
     setIsFitGraphAvailable: (state, { payload }: PayloadAction<boolean>) => {
       state.isFitGraphAvailable = payload;
     },
@@ -117,6 +124,10 @@ const selectIsOffline = createSelector([rootSelector], state => state.isOffline)
 
 const selectIsFitGraphAvailable = createSelector([rootSelector], state => state.isFitGraphAvailable);
 
+const selectDialIframeAllowedHosts = createSelector([rootSelector], state => state.dialIframeAllowedHosts);
+
+const selectIsServerUnavailable = createSelector([rootSelector], state => state.isServerUnavailable);
+
 export const ChatUIActions = chatUISlice.actions;
 
 export const ChatUISelectors = {
@@ -133,4 +144,6 @@ export const ChatUISelectors = {
   selectAuthUiMode,
   selectIsOffline,
   selectIsFitGraphAvailable,
+  selectDialIframeAllowedHosts,
+  selectIsServerUnavailable,
 };

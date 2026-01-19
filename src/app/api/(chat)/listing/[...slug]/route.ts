@@ -17,8 +17,13 @@ const getEntityUrlFromSlugs = (dialApiHost: string, slugs: string[]): string => 
   return constructPath(dialApiHost, 'v1', 'metadata', ServerUtils.encodeSlugs(slugs), '?recursive=true&limit=1000');
 };
 
-async function handleGetRequest(req: NextRequest, authParams: AuthParams, context: { params: { slug: string[] } }) {
-  const url = getEntityUrlFromSlugs(process.env.DIAL_API_HOST!, context.params.slug);
+async function handleGetRequest(
+  req: NextRequest,
+  authParams: AuthParams,
+  context: { params: Promise<{ slug: string[] }> },
+) {
+  const params = await context.params;
+  const url = getEntityUrlFromSlugs(process.env.DIAL_API_HOST!, params.slug);
 
   const reqHeaders = getApiHeaders({
     authParams: authParams,

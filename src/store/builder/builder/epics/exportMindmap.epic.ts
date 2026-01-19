@@ -1,8 +1,7 @@
 import { saveAs } from 'file-saver';
-import { EMPTY, from, of } from 'rxjs';
+import { from, of } from 'rxjs';
 import { catchError, concatMap, filter, mergeMap } from 'rxjs/operators';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { HTTPMethod } from '@/types/http';
 import { BuilderRootEpic } from '@/types/store';
 
@@ -16,32 +15,50 @@ export const exportMindmapEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
     filter(BuilderActions.exportMindmap.match),
     concatMap(() => {
-      const folder = ApplicationSelectors.selectMindmapFolder(state$.value);
       const name = ApplicationSelectors.selectApplicationName(state$.value);
-      const applicationDisplayName = ApplicationSelectors.selectApplicationDisplayName(state$.value);
-      if (!folder) return EMPTY;
+      const display = ApplicationSelectors.selectApplicationDisplayName(state$.value);
+      const url = `/api/mindmaps/${encodeURIComponent(name)}/sources/export`;
 
-      return from(
-        fetch(`/api/mindmaps/${encodeURIComponent(name)}/sources/export`, {
-          method: HTTPMethod.GET,
-          headers: { [MindmapUrlHeaderName]: folder },
-        }),
-      ).pipe(
+      return from(fetch(url, { method: HTTPMethod.GET })).pipe(
         mergeMap(resp => checkForUnauthorized(resp)),
         concatMap(async resp => {
           if (!resp.ok) {
-            const text = await resp.text();
+            const text = await resp.text().catch(() => '');
             throw new Error(text || resp.statusText);
           }
-          const blob = await resp.blob();
-          const fileName = `${applicationDisplayName}.zip`;
-          saveAs(blob, fileName);
+
+          const reader = resp.body?.getReader();
+          if (!reader) throw new Error('No response body');
+
+          const chunks: Uint8Array[] = [];
+
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) {
+              chunks.push(value);
+            }
+          }
+
+          const size = chunks.reduce((s, c) => s + c.byteLength, 0);
+          const merged = new Uint8Array(size);
+          let offset = 0;
+          for (const c of chunks) {
+            merged.set(c, offset);
+            offset += c.byteLength;
+          }
+
+          const contentType = resp.headers.get('content-type') ?? 'application/zip';
+          const blob = new Blob([merged.buffer as ArrayBuffer], { type: contentType });
+          saveAs(blob, `${display}.zip`);
+
           return BuilderActions.exportMindmapSuccess();
         }),
         globalCatchUnauthorized(),
-        catchError(err =>
-          of(UIActions.showErrorToast('Export mindmap failed'), BuilderActions.exportMindmapFailure(err.message)),
-        ),
+        catchError(error => {
+          console.error('exportMindmapEpic Error:', error);
+          return of(UIActions.showErrorToast('Export mindmap failed'), BuilderActions.exportMindmapFailure());
+        }),
       );
     }),
   );

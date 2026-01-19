@@ -15,67 +15,76 @@ export const updateConversationEpic: ChatRootEpic = (action$, state$) =>
       conversation: ConversationSelectors.selectConversation(state$.value),
       playBackConversation: PlaybackSelectors.selectPlaybackConversation(state$.value),
       playbackAction: payload.action,
+      message: payload.message,
+      previousFocusNodeId: payload.previousFocusNodeId,
+      previousGraphElements: payload.previousGraphElements,
     })),
-    switchMap(({ playBackConversation, conversation, playbackAction }) => {
-      if (!playBackConversation) {
-        return EMPTY;
-      }
+    switchMap(
+      ({ playBackConversation, conversation, playbackAction, message, previousFocusNodeId, previousGraphElements }) => {
+        if (!playBackConversation) {
+          return EMPTY;
+        }
 
-      const nextMessageNumber = playBackConversation?.messages.length ?? 0;
-      const nextUserMessage = conversation.playback?.messagesStack[nextMessageNumber];
-      const nextBotMessage = conversation.playback?.messagesStack[nextMessageNumber + 1];
+        const nextMessageNumber = playBackConversation?.messages.length ?? 0;
+        let nextUserMessage = conversation.playback?.messagesStack[nextMessageNumber];
+        const nextBotMessage = message ?? conversation.playback?.messagesStack[nextMessageNumber + 1];
 
-      if (!playbackAction.mindmap) {
-        return EMPTY;
-      }
+        if (previousFocusNodeId && nextUserMessage) {
+          nextUserMessage = { ...nextUserMessage, id: previousFocusNodeId };
+        }
 
-      const {
-        focusNodeId: nextFocusNodeId,
-        visitedNodes: nextVisitedNodes,
-        elements: nextGraphState,
-        depth: nextDepth,
-      } = playbackAction.mindmap;
+        if (!playbackAction.mindmap) {
+          return EMPTY;
+        }
 
-      if (!nextUserMessage || !nextBotMessage || !nextFocusNodeId || !nextVisitedNodes || !nextGraphState) {
-        return EMPTY;
-      }
+        const {
+          focusNodeId: nextFocusNodeId,
+          visitedNodes: nextVisitedNodes,
+          elements: nextGraphState,
+          depth: nextDepth,
+        } = playbackAction.mindmap;
 
-      const isRobotMessage = nextBotMessage.custom_content?.attachments?.some(
-        attachment => attachment.title === AttachmentTitle['Generated graph node'],
-      );
+        if (!nextUserMessage || !nextBotMessage || !nextFocusNodeId || !nextVisitedNodes || !nextGraphState) {
+          return EMPTY;
+        }
 
-      if (!isRobotMessage) {
-        return from([
-          PlaybackActions.setPlaybackConversation({
-            ...playBackConversation,
-            messages: [...playBackConversation.messages, nextUserMessage, nextBotMessage],
-          }),
-          MindmapActions.setVisitedNodes(playbackAction.mindmap.visitedNodes || {}),
-          MindmapActions.setGraphElements(nextGraphState),
-          MindmapActions.setFocusNodeId(nextFocusNodeId),
-          MindmapActions.setDepth(nextDepth || 2),
-          PlaybackActions.setPlaybackInputText(null),
-        ]);
-      } else {
-        return concat(
-          of(PlaybackActions.setPlaybackInputText(null)),
-          of(
-            MindmapActions.addLinkedToFocusedElement({
-              id: nextBotMessage.id ?? '',
-              label: NEW_QUESTION_LABEL,
-            }),
-          ),
-          of(MindmapActions.handleNavigation({ clickedNodeId: nextBotMessage.id ?? '', shouldFetchGraph: false })),
-          of(
+        const isRobotMessage = nextBotMessage.custom_content?.attachments?.some(
+          attachment => attachment.title === AttachmentTitle['Generated graph node'],
+        );
+
+        if (!isRobotMessage) {
+          return from([
             PlaybackActions.setPlaybackConversation({
               ...playBackConversation,
-              messages: [...playBackConversation.messages, nextUserMessage, { ...nextBotMessage, content: '' }],
+              messages: [...playBackConversation.messages, nextUserMessage, nextBotMessage],
             }),
-          ),
-          of(PlaybackActions.setBotStreaming({ isStreaming: true })),
-          of(PlaybackActions.streamBotMessage({ message: nextBotMessage })),
-          of(MindmapActions.setFocusNodeId(nextFocusNodeId)),
-        );
-      }
-    }),
+            MindmapActions.setVisitedNodes(playbackAction.mindmap.visitedNodes || {}),
+            MindmapActions.setGraphElements(previousGraphElements ?? nextGraphState),
+            MindmapActions.setFocusNodeId(previousFocusNodeId ?? nextFocusNodeId),
+            MindmapActions.setDepth(nextDepth || 2),
+            PlaybackActions.setPlaybackInputText(null),
+          ]);
+        } else {
+          return concat(
+            of(PlaybackActions.setPlaybackInputText(null)),
+            of(
+              MindmapActions.addLinkedToFocusedElement({
+                id: nextBotMessage.id ?? '',
+                label: NEW_QUESTION_LABEL,
+              }),
+            ),
+            of(MindmapActions.handleNavigation({ clickedNodeId: nextBotMessage.id ?? '', shouldFetchGraph: false })),
+            of(
+              PlaybackActions.setPlaybackConversation({
+                ...playBackConversation,
+                messages: [...playBackConversation.messages, nextUserMessage, { ...nextBotMessage, content: '' }],
+              }),
+            ),
+            of(PlaybackActions.setBotStreaming({ isStreaming: true })),
+            of(PlaybackActions.streamBotMessage({ message: nextBotMessage })),
+            of(MindmapActions.setFocusNodeId(previousFocusNodeId ?? nextFocusNodeId)),
+          );
+        }
+      },
+    ),
   );

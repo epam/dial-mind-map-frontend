@@ -24,6 +24,8 @@ export const useSourceFileUpload = ({ watchedSources, handleAddSource }: UseSour
         dispatch,
         AllowedSourceFilesTypesList,
         MAX_SOURCE_FILE_SIZE_MB * BytesInMb,
+        undefined,
+        true,
       );
 
       const duplicatesInForm = filtered.filter(f =>

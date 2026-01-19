@@ -12,6 +12,9 @@ export const globalCatchUnauthorized = <T>() =>
     if (error.status === 403) {
       return of(AuthActions.redirectToForbidden());
     }
+    if (error.status === 502) {
+      return of(UIActions.setIsServerUnavailable(true));
+    }
     if (error.message === 'Failed to fetch') {
       return concat(
         of(UIActions.setIsOffline(true)),

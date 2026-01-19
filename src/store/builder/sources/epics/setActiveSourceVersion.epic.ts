@@ -1,7 +1,6 @@
 import { UnknownAction } from '@reduxjs/toolkit';
-import { concat, concatMap, EMPTY, filter, from, map, of } from 'rxjs';
+import { concat, concatMap, filter, from, map, of } from 'rxjs';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { HTTPMethod } from '@/types/http';
 import { Source, SourceStatus } from '@/types/sources';
 import { BuilderRootEpic } from '@/types/store';
@@ -21,12 +20,6 @@ export const setActiveSourceVersionEpic: BuilderRootEpic = (action$, state$) =>
       sources: SourcesSelectors.selectSources(state$.value),
     })),
     concatMap(({ payload, appName, sources }) => {
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
       const { sourceId, versionId } = payload;
 
       const optimisticActions: UnknownAction[] = [HistoryActions.setIsUndo(true), HistoryActions.setIsRedo(false)];
@@ -78,17 +71,15 @@ export const setActiveSourceVersionEpic: BuilderRootEpic = (action$, state$) =>
         failureActions.push(SourcesActions.setSources(failureSourcesUpdate));
       }
 
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(appName)}/documents/${sourceId}/versions/${versionId}/active`,
-        {
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(appName)}/documents/${sourceId}/versions/${versionId}/active`,
+        options: {
           method: HTTPMethod.POST,
-          headers: { [MindmapUrlHeaderName]: mindmapFolder },
         },
         state$,
         optimisticActions,
-        [],
         failureActions,
         responseProcessor,
-      );
+      });
     }),
   );

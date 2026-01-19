@@ -5,7 +5,7 @@ import { errorsMessages } from '@/constants/errors';
 import { DeploymentIdHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
 import { Message } from '@/types/chat';
-import { Graph } from '@/types/graph';
+import { CompletionGraphResponse, Graph } from '@/types/graph';
 import { HTTPMethod } from '@/types/http';
 import { withAuth } from '@/utils/auth/withAuth';
 import { getApiHeaders } from '@/utils/server/get-headers';
@@ -51,8 +51,12 @@ const getGraphHandler = async (req: NextRequest, authParams: AuthParams) => {
     }
 
     const subgraph: Graph = JSON.parse(message.custom_content.attachments[0].data);
+    const result: CompletionGraphResponse = {
+      responseId: json.id,
+      graph: subgraph,
+    };
 
-    return NextResponse.json(subgraph, {
+    return NextResponse.json(result, {
       status: response.status,
       headers: new Headers({
         'Content-Type': 'application/json',

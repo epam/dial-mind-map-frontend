@@ -119,7 +119,7 @@ describe('sanitizeAndReportFiles', () => {
     expect(result).toEqual([]);
     expect(dispatch).toHaveBeenCalledWith(
       UIActions.showErrorToast(
-        `The symbols @#% and a dot at the end are not allowed in file name. Please rename or delete them from uploading files list: bad@name.png`,
+        `The symbols @#% and a dot at the end are not allowed in file name. Please rename or delete them from uploading files list: bad@name.png, dotend.`,
       ),
     );
   });

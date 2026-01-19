@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { errorsMessages } from '@/constants/errors';
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
 import { HTTPMethod } from '@/types/http';
+import { decodeAppPathSafely } from '@/utils/app/application';
 import { withAuth } from '@/utils/auth/withAuth';
 import { getApiHeaders } from '@/utils/server/get-headers';
 import { logger } from '@/utils/server/logger';
@@ -12,18 +12,21 @@ import { withLogger } from '@/utils/server/withLogger';
 const generationStatusHandler = async (
   req: NextRequest,
   authParams: AuthParams,
-  context: { params: { mindmap: string } },
+  context: { params: Promise<{ mindmap: string }> },
 ) => {
-  const mindmapId = decodeURIComponent(context.params.mindmap);
+  const params = await context.params;
+  const mindmapId = decodeAppPathSafely(params.mindmap);
   try {
-    const response = await fetch(`${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/generation_status`, {
-      method: HTTPMethod.POST,
-      headers: getApiHeaders({
-        authParams: authParams,
-        contentType: 'application/json',
-        [MindmapUrlHeaderName]: req.headers.get(MindmapUrlHeaderName) ?? undefined,
-      }),
-    });
+    const response = await fetch(
+      `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/generation_status`,
+      {
+        method: HTTPMethod.POST,
+        headers: getApiHeaders({
+          authParams: authParams,
+          contentType: 'application/json',
+        }),
+      },
+    );
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -76,7 +79,7 @@ const generationStatusHandler = async (
       }),
     });
   } catch (error) {
-    logger.error(error, `Error occurred during generation status for mindmap ${context.params.mindmap}`);
+    logger.error(error, `Error occurred during generation status for mindmap ${params.mindmap}`);
     return new NextResponse(errorsMessages.generalServer, { status: 500 });
   }
 };

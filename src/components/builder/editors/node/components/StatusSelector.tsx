@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import Select, { StylesConfig } from 'react-select';
 
 export interface SelectOption {

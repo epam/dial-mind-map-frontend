@@ -1,10 +1,9 @@
-import { concat, concatMap, EMPTY, filter, from, map, mergeMap, of } from 'rxjs';
+import { concat, concatMap, filter, from, map, mergeMap, of } from 'rxjs';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { ApplicationSelectors } from '@/store/builder/application/application.reducer';
 import { HistoryActions } from '@/store/builder/history/history.reducers';
 import { UIActions } from '@/store/builder/ui/ui.reducers';
-import { handleRequestNew } from '@/store/builder/utils/handleRequest';
+import { handleRequest } from '@/store/builder/utils/handleRequest';
 import { HTTPMethod } from '@/types/http';
 import { Source, SourceStatus, SourceType } from '@/types/sources';
 import { BuilderRootEpic } from '@/types/store';
@@ -17,12 +16,9 @@ export const reindexSourcesEpic: BuilderRootEpic = (action$, state$) =>
     map(({ payload: selected }) => ({
       selected,
       appName: ApplicationSelectors.selectApplicationName(state$.value),
-      folder: ApplicationSelectors.selectMindmapFolder(state$.value),
       allSources: SourcesSelectors.selectSources(state$.value),
     })),
-    mergeMap(({ selected, appName, folder, allSources }) => {
-      if (!folder) return EMPTY;
-
+    mergeMap(({ selected, appName, allSources }) => {
       const updatedAll = allSources.map(source =>
         selected.some(s => s.id === source.id)
           ? { ...source, status: SourceStatus.INPROGRESS, created: undefined, version: undefined }
@@ -55,12 +51,11 @@ export const reindexSourcesEpic: BuilderRootEpic = (action$, state$) =>
               }),
             );
 
-          return handleRequestNew({
+          return handleRequest({
             url: `/api/mindmaps/${encodeURIComponent(appName)}/documents/${source.id}/versions`,
             options: {
               method: HTTPMethod.POST,
               body: formData,
-              headers: { [MindmapUrlHeaderName]: folder },
             },
             state$,
             responseProcessor,

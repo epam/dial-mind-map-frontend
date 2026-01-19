@@ -61,7 +61,7 @@ export const useAuth = (
       hasOpenedWindowRef.current = true;
       setIsWindowOpen(true);
 
-      if (redirectToSignIn) {
+      if (redirectToSignIn && authWindowRef.current) {
         resetRedirectStatus();
       }
     }

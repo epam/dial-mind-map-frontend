@@ -164,9 +164,9 @@ export const TooltipTrigger = forwardRef<HTMLElement, HTMLProps<HTMLElement> & {
         context.getReferenceProps({
           ref,
           ...props,
-          ...children.props,
+          ...((children.props ?? {}) as Record<string, unknown>),
           'data-state': context.open ? 'open' : 'closed',
-        }),
+        } as Record<string, unknown>),
       );
     }
 

@@ -1,4 +1,4 @@
-import { UnknownAction } from '@reduxjs/toolkit';
+import { Action, UnknownAction } from '@reduxjs/toolkit';
 import { combineEpics } from 'redux-observable';
 import {
   catchError,
@@ -17,7 +17,6 @@ import {
   take,
   tap,
   throwError,
-  timeout,
   TimeoutError,
   withLatestFrom,
 } from 'rxjs';
@@ -28,17 +27,27 @@ import {
   DeploymentIdHeaderName,
   RecaptchaRequiredHeaderName,
 } from '@/constants/http';
-import { ChatBody, Conversation, Message, PlaybackAction, PlaybackActionType, Role, ViewState } from '@/types/chat';
+import {
+  AttachmentTitle,
+  ChatBody,
+  Conversation,
+  Message,
+  PlaybackAction,
+  PlaybackActionType,
+  Role,
+  ViewState,
+} from '@/types/chat';
 import { EntityType } from '@/types/common';
 import { DialAIError } from '@/types/error';
 import { NodesMIMEType } from '@/types/files';
 import { Element, Node } from '@/types/graph';
 import { ChatRootEpic } from '@/types/store';
 import { cleanGraphElementsForPlayback } from '@/utils/app/clean';
-import { generateUniqueConversationName } from '@/utils/app/conversation';
+import { generateUniqueConversationName, getDuplicateMessageId } from '@/utils/app/conversation';
 import { ConversationService } from '@/utils/app/data/conversation-service';
 import { isEntityIdLocal } from '@/utils/app/id';
 import { mergeMessages, parseStreamMessages } from '@/utils/app/merge-streams';
+import { isAbortError } from '@/utils/common/error';
 
 import { anonymSessionActions, AnonymSessionSelectors } from '../anonymSession/anonymSession.slice';
 import { ApplicationSelectors } from '../application/application.reducer';
@@ -51,6 +60,7 @@ import { globalCatchChatUnauthorized } from '../utils/globalCatchUnauthorized';
 import { ConversationActions, ConversationSelectors } from './conversation.reducers';
 import { getConversationsEpic } from './epics/getConversations.epic';
 import { initEpic } from './epics/init.epic';
+import { rateMessageEpic, rateMessageFailEpic, rateMessageSuccessEpic } from './epics/rateMessage.epic';
 import { resetConversationEpic } from './epics/resetConversation.epic';
 import { sendMessageEpic } from './epics/sendMessage.epic';
 import { sendMessagesEpic } from './epics/sendMessages.epic';
@@ -170,8 +180,6 @@ const streamMessageEpic: ChatRootEpic = (action$, state$) =>
             })),
           );
         }),
-        // TODO: https://github.com/epam/ai-dial-chat/issues/115
-        timeout(120000),
         mergeMap(({ resp, isRecaptchaRequired, anonymCsrfToken }) =>
           iif(
             () => resp.done,
@@ -228,7 +236,7 @@ const streamMessageEpic: ChatRootEpic = (action$, state$) =>
         ),
         globalCatchChatUnauthorized(),
         catchError((error: Error | DialAIError) => {
-          if (error.name === 'AbortError') {
+          if (isAbortError(error)) {
             return of(
               ConversationActions.updateConversation({
                 values: { isMessageStreaming: false },
@@ -336,36 +344,75 @@ const addOrUpdateMessagesEpic: ChatRootEpic = (action$, state$) =>
     map(({ payload }) => ({
       payload,
       conversation: ConversationSelectors.selectConversation(state$.value),
+      completionGraphResponseId: MindmapSelectors.selectCompletionGraphResponseId(state$.value),
     })),
-    switchMap(({ payload, conversation }) => {
+    switchMap(({ payload, conversation, completionGraphResponseId }) => {
       const { messages } = conversation;
       const { messages: newMessages, isInitialization, needToUpdateInBucket } = payload;
       const updatedMessages = [...messages];
 
+      const actions: Action[] = [];
+
       newMessages.forEach(message => {
-        const idx = updatedMessages.findIndex(
-          m => m.id === message.id || (m.role === message.role && m.content === message.content),
+        const idx = updatedMessages.findLastIndex(
+          m => m.id && message.id && (m.id === message.id || m.id.endsWith(getDuplicateMessageId('', message.id))),
         );
+
+        const focusNodeId = MindmapSelectors.selectFocusNodeId(state$.value);
+
+        const index = updatedMessages.findLastIndex(m => {
+          const attachment = m.custom_content?.attachments?.find(
+            a => a.title === AttachmentTitle['Generated graph node'],
+          );
+          let data = null;
+          if (attachment?.data) {
+            try {
+              data = JSON.parse(attachment.data);
+              if (data && Array.isArray(data)) {
+                for (const element of data) {
+                  if (element.data && element.data.id === focusNodeId && element.data.details === message.content) {
+                    return true;
+                  }
+                }
+              }
+            } catch {}
+          }
+        });
         if (idx !== -1) {
+          const isAlternativeQuestion = updatedMessages[idx].content !== message.content;
           updatedMessages[idx] = {
             ...updatedMessages[idx],
             ...message,
-            content: message.content || updatedMessages[idx].content,
+            content: isAlternativeQuestion ? updatedMessages[idx].content : message.content,
             availableNodes: message.availableNodes ?? updatedMessages[idx].availableNodes,
             references: message.references ?? updatedMessages[idx].references,
+            id: updatedMessages[idx].id,
+          };
+        } else if (index !== -1) {
+          updatedMessages[index] = {
+            ...updatedMessages[index],
+            availableNodes: message.availableNodes ?? updatedMessages[index].availableNodes,
+            references: message.references ?? updatedMessages[index].references,
+            id: message.id ?? updatedMessages[index].id,
           };
         } else {
+          if (message.role === Role.Assistant && !message.responseId && completionGraphResponseId) {
+            message.responseId = completionGraphResponseId;
+            actions.push(MindmapActions.setCompletionGraphResponseId());
+          }
           updatedMessages.push(message);
         }
       });
 
-      return of(
+      actions.push(
         ConversationActions.updateConversation({
           values: { messages: updatedMessages },
           isInitialization,
           needToUpdateInBucket,
         }),
       );
+
+      return concat(actions);
     }),
   );
 
@@ -395,6 +442,20 @@ const deleteMessageEpic: ChatRootEpic = (action$, state$) =>
       );
     }),
   );
+
+const isNavigationRequired = (messages: Message[], focusNodeId: string): boolean => {
+  const lastTwoIndex = messages.length - 2;
+
+  const focusMessageIsBeforeLastTwo = messages.some(
+    (message, index) => message.id === focusNodeId && index < lastTwoIndex,
+  );
+
+  const duplicateIsInLastTwo = messages.some(
+    (message, index) => message.id?.endsWith(getDuplicateMessageId('', focusNodeId)) && index >= lastTwoIndex,
+  );
+
+  return focusMessageIsBeforeLastTwo && !duplicateIsInLastTwo;
+};
 
 const updateConversationEpic: ChatRootEpic = (action$, state$) =>
   action$.pipe(
@@ -474,24 +535,11 @@ const updateConversationEpic: ChatRootEpic = (action$, state$) =>
           const mindmapElements = MindmapSelectors.selectGraphElements(state$.value);
           const visitedNodes = MindmapSelectors.selectVisitedNodes(state$.value);
           const focusNodeId = MindmapSelectors.selectFocusNodeId(state$.value);
-          const hasMessageInConversation = newConversation.messages.some(
-            (message, index) => message.id === focusNodeId && index < newConversation.messages.length - 2,
-          );
+          const isNavigation = isNavigationRequired(newConversation.messages, focusNodeId);
           const depth = MindmapSelectors.selectDepth(state$.value);
           const playbackActions: PlaybackAction[] = [
             {
-              type: PlaybackActionType.FillInput,
-              mindmap: {
-                elements: cleanGraphElementsForPlayback(mindmapElements),
-                focusNodeId,
-                visitedNodes,
-                depth,
-              },
-            },
-            {
-              type: hasMessageInConversation
-                ? PlaybackActionType.ChangeFocusNode
-                : PlaybackActionType.UpdateConversation,
+              type: isNavigation ? PlaybackActionType.ChangeFocusNode : PlaybackActionType.UpdateConversation,
               mindmap: {
                 elements: cleanGraphElementsForPlayback(mindmapElements),
                 focusNodeId,
@@ -549,36 +597,25 @@ const updateConversationEpic: ChatRootEpic = (action$, state$) =>
           );
         }
       }
+
       const mindmapElements = MindmapSelectors.selectGraphElements(state$.value);
       const visitedNodes = MindmapSelectors.selectVisitedNodes(state$.value);
       const focusNodeId = MindmapSelectors.selectFocusNodeId(state$.value);
-      const hasMessageInConversation = newConversation.messages.some(
-        (message, index) => message.id === focusNodeId && index < newConversation.messages.length - 2,
-      );
+      const isNavigation = isNavigationRequired(newConversation.messages, focusNodeId);
       const depth = MindmapSelectors.selectDepth(state$.value);
       const lastActionDepth = newConversation.customViewState.playbackActions?.at(-1)?.mindmap.depth;
       const playbackActions: PlaybackAction[] = [];
+
       if (lastActionDepth === depth) {
-        playbackActions.push(
-          {
-            type: PlaybackActionType.FillInput,
-            mindmap: {
-              elements: cleanGraphElementsForPlayback(mindmapElements),
-              focusNodeId,
-              visitedNodes,
-              depth: depth,
-            },
+        playbackActions.push({
+          type: isNavigation ? PlaybackActionType.ChangeFocusNode : PlaybackActionType.UpdateConversation,
+          mindmap: {
+            elements: cleanGraphElementsForPlayback(mindmapElements),
+            focusNodeId,
+            visitedNodes,
+            depth: depth,
           },
-          {
-            type: hasMessageInConversation ? PlaybackActionType.ChangeFocusNode : PlaybackActionType.UpdateConversation,
-            mindmap: {
-              elements: cleanGraphElementsForPlayback(mindmapElements),
-              focusNodeId,
-              visitedNodes,
-              depth: depth,
-            },
-          },
-        );
+        });
       } else {
         playbackActions.push({
           type: PlaybackActionType.ChangeDepth,
@@ -616,17 +653,7 @@ const updateConversationEpic: ChatRootEpic = (action$, state$) =>
         action$.pipe(
           filter(ConversationActions.saveConversationSuccess.match),
           take(1),
-          tap(({ payload: { conversation } }) => {
-            const dialHost = ChatUISelectors.selectDialChatHost(state$.value);
-            const mindmapIframeTitle = ChatUISelectors.selectMindmapIframeTitle(state$.value);
-            window?.parent.postMessage(
-              {
-                type: `${mindmapIframeTitle}/UPDATED_CONVERSATION_SUCCESS`,
-                payload: { conversation: { ...newConversation, updatedAt: conversation.updatedAt } },
-              },
-              dialHost,
-            );
-          }),
+          tap(() => {}),
           catchError(() =>
             of(
               ConversationActions.updateConversationFail({
@@ -645,14 +672,13 @@ const createConversationEpic: ChatRootEpic = (action$, state$) =>
     concatMap(({ payload: newConversation }) =>
       ConversationService.createConversation(newConversation).pipe(
         tap(() => {
-          const dialHost = ChatUISelectors.selectDialChatHost(state$.value);
           const mindmapIframeTitle = ChatUISelectors.selectMindmapIframeTitle(state$.value);
           window?.parent.postMessage(
             {
               type: `${mindmapIframeTitle}/CREATED_CONVERSATION_SUCCESS`,
               payload: { conversation: newConversation },
             },
-            dialHost,
+            '*',
           );
         }),
         switchMap(() =>
@@ -682,8 +708,18 @@ const saveConversationEpic: ChatRootEpic = (action$, state$) =>
         return EMPTY;
       }
 
+      const mindmapIframeTitle = ChatUISelectors.selectMindmapIframeTitle(state$.value);
+      window?.parent.postMessage(
+        {
+          type: `${mindmapIframeTitle}/UPDATED_CONVERSATION_SUCCESS`,
+          payload: { conversation: { ...conversation, updatedAt: conversation.updatedAt } },
+        },
+        '*',
+      );
+
       return ConversationService.updateConversation(conversation).pipe(
         map(response => ConversationActions.saveConversationSuccess({ conversation: { ...response } })),
+
         catchError(() => {
           return of(ChatUIActions.showErrorToast('An error occurred while saving the conversation.'));
         }),
@@ -706,4 +742,7 @@ export const ConversationEpics = combineEpics(
   createConversationEpic,
   getConversationsEpic,
   resetConversationEpic,
+  rateMessageEpic,
+  rateMessageSuccessEpic,
+  rateMessageFailEpic,
 );

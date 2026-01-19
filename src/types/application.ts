@@ -4,7 +4,7 @@ export interface Application {
   icon_url?: string;
   reference: string;
   application_properties: {
-    mindmap_folder: string;
+    mindmap_folder?: string;
   } | null;
   display_name?: string;
 }

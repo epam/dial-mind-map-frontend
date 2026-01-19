@@ -114,7 +114,7 @@ describe('playbackSlice reducer', () => {
   });
 
   it('should handle playbackNextStep and playbackPreviousStep without changing state', () => {
-    const nextState = playbackSlice.reducer(initialState, PlaybackActions.playbackNextStep());
+    const nextState = playbackSlice.reducer(initialState, PlaybackActions.playbackNextStep({}));
     expect(nextState).toEqual(initialState);
     const prevState = playbackSlice.reducer(initialState, PlaybackActions.playbackPreviousStep());
     expect(prevState).toEqual(initialState);

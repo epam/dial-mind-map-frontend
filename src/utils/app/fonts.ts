@@ -17,10 +17,9 @@ export function getFontUrl(
   fontFileName: string | undefined,
   applicationName: string,
   theme: any,
-  mindmapFolder: string,
 ): string | undefined {
   if (fontFileName) {
-    return getAppearanceFileUrl(applicationName, theme, fontFileName, mindmapFolder);
+    return getAppearanceFileUrl(applicationName, theme, fontFileName);
   } else if (fontFamily) {
     return `https://fonts.googleapis.com/css2?family=${fontFamily}:wght@100;200;300;400;500;600;700;800;900&display=swap`;
   }

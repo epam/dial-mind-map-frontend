@@ -7,6 +7,7 @@ import { BuilderActions } from '@/store/builder/builder/builder.reducers';
 import { CompletionSelectors } from '@/store/builder/completion/completion.selectors';
 import { GraphActions, GraphSelectors } from '@/store/builder/graph/graph.reducers';
 import { useBuilderDispatch, useBuilderSelector } from '@/store/builder/hooks';
+import { SettingsSelectors } from '@/store/builder/settings/settings.reducers';
 import { UIActions, UISelectors } from '@/store/builder/ui/ui.reducers';
 import { Edge, Element, Node, PositionedElement } from '@/types/graph';
 
@@ -31,6 +32,8 @@ export const GraphEditor = () => {
   const areGeneretedEdgesShowen = useBuilderSelector(UISelectors.selectAreGeneretedEdgesShowen);
   const isMessageStreaming = useBuilderSelector(CompletionSelectors.selectIsMessageStreaming);
   const isGraphReady = useBuilderSelector(GraphSelectors.selectIsReady);
+  const isProdEnv = useBuilderSelector(SettingsSelectors.selectIsProdEnv);
+
   const focusNodeHandler = useCallback(
     (node: Node) => {
       dispatch(GraphActions.setFocusNodeId(node.id));
@@ -63,6 +66,13 @@ export const GraphEditor = () => {
   const updateNodesPositionsHandler = useCallback(
     (positionedNodes: PositionedElement<Node>[], historySkip?: boolean) => {
       dispatch(BuilderActions.updateNodesPositions({ positionedNodes, historySkip }));
+    },
+    [dispatch],
+  );
+
+  const patchEdgesHandler = useCallback(
+    ({ edges, edgesIdsToDelete }: { edges?: Element<Edge>[]; edgesIdsToDelete?: string[] }) => {
+      dispatch(BuilderActions.patchGraph({ edges, edgesIdsToDelete }));
     },
     [dispatch],
   );
@@ -131,6 +141,7 @@ export const GraphEditor = () => {
                 updateSignal={updateSignal}
                 updateMode={updateMode}
                 areGeneretadEdgesShowen={areGeneretedEdgesShowen}
+                isProdEnv={isProdEnv}
                 onFocusNodeChange={focusNodeHandler}
                 onEdgeDelete={edgeDeleteHandler}
                 onEdgeCreate={edgeCreateHandler}
@@ -140,6 +151,7 @@ export const GraphEditor = () => {
                 onNodeCreate={nodeCreateHandler}
                 onNodeDelete={nodeDeleteHandler}
                 onSetNodeAsRoot={setNodeAsRootHanler}
+                onPatchEdges={patchEdgesHandler}
               />
             ) : (
               <TableView />

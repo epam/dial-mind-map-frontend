@@ -18,4 +18,6 @@ export interface MindmapState {
   fullscreenReferences: Array<DocsReference | NodeReference> | null;
   fullscreenInitialSlide: number | null;
   activeFullscreenReferenceId: string | null;
+  relayoutInProgress?: boolean;
+  completionGraphResponseId?: string;
 }

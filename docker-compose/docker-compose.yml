@@ -1,0 +1,96 @@
+services:
+  redis:
+    image: redis:8.2.2-alpine3.22
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+      --maxmemory 2000mb
+      --save ""
+      --appendonly yes
+      --dir /data
+    volumes:
+      - redis-data:/data
+    mem_limit: 2200M
+
+  core:
+    user: root
+    ports:
+      - "8080:8080"
+    image: epam/ai-dial-core:0.39.1
+    platform: linux/amd64
+    environment:
+      'AIDIAL_SETTINGS': '/opt/settings/settings.json'
+      'JAVA_OPTS': '-Dgflog.config=/opt/settings/gflog.xml'
+      'LOG_DIR': '/app/log'
+      'STORAGE_DIR': '/app/data'
+      'aidial.storage.overrides': '{ "jclouds.filesystem.basedir": "data" }'
+    depends_on:
+      - redis
+    volumes:
+      - ./dial_dir/settings:/opt/settings
+      - ./dial_dir/core:/opt/config
+      - core-logs:/app/log
+      - core-data:/app/data
+
+  adapter-openai:
+    image: epam/ai-dial-adapter-openai:0.35.0
+    platform: linux/amd64
+    environment:
+      DIAL_URL: "http://core:8080"
+
+  themes:
+    image: epam/ai-dial-chat-themes:0.12.0
+    platform: linux/amd64
+    ports:
+      - "3001:8080"
+
+  chat:
+    ports:
+      - "3000:3000"
+    image: epam/ai-dial-chat:0.41.3
+    platform: linux/amd64
+    depends_on:
+      - themes
+      - core
+    environment:
+      NEXTAUTH_SECRET: "secret"
+      THEMES_CONFIG_HOST: "http://themes:8080"
+      DIAL_API_HOST: "http://core:8080"
+      DIAL_API_KEY: "dial_api_key"
+      ENABLED_FEATURES: "conversations-section,prompts-section,top-settings,top-clear-conversation,top-chat-info,top-chat-model-settings,empty-chat-settings,header,footer,request-api-key,report-an-issue,likes,conversations-sharing,input-files,attachments-manager,prompts-sharing,prompts-publishing,conversations-publishing,custom-logo,input-links,custom-applications,message-templates,marketplace,quick-app_factory,code-app_factory,applications-sharing,marketplace-table-view"
+      ALLOWED_IFRAME_ORIGINS: "http://localhost:3002"
+      ALLOWED_IFRAME_SOURCES: "http://localhost:3002"
+
+
+  mind-map-backend:
+    ports:
+      - "5000:5000"
+    image: ghcr.io/epam/dial-mind-map-backend:0.12.3
+    platform: linux/amd64
+    environment:
+      DIAL_URL: "http://core:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+
+  mind-map-frontend:
+    ports:
+      - "3002:5000"
+    image: ghcr.io/epam/dial-mind-map-frontend:0.9.7
+    platform: linux/amd64
+    environment:
+      NEXTAUTH_SECRET: "secret"
+      NEXTAUTH_URL: "http://localhost:3002"
+      THEMES_CONFIG_HOST: "http://themes:8080"
+      DIAL_API_HOST: "http://core:8080"
+      DIAL_CHAT_HOST: "http://localhost:3000"
+      MINDMAP_IFRAME_TITLE: "Mind map"
+      DIAL_API_KEY: "dial_api_key"
+      BUILDER_ALLOW_API_KEY_AUTH: "true"
+
+volumes:
+  redis-data:
+  core-data:
+  core-logs:

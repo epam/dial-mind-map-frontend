@@ -63,10 +63,13 @@ export enum EdgeDirectionType {
   Outbound = 'outbound',
 }
 
+export type ReverseEdge = Omit<Edge, 'reverseEdge'>;
+
 export interface Edge extends Entity {
   source: string;
   target: string;
   type?: EdgeType;
+  reverseEdge?: ReverseEdge;
 }
 
 export type GraphElement = Node | Edge;
@@ -86,6 +89,11 @@ export interface Graph {
   nodes: PositionedElement<Node>[];
   edges: Element<Edge>[];
   root: string;
+}
+
+export interface CompletionGraphResponse {
+  graph: Graph;
+  responseId: string;
 }
 
 // Enum representing system-specific node data keys used for internal visualizations.

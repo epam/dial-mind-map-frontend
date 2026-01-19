@@ -12,8 +12,6 @@ import { validateToken } from './validate-token';
 
 const waitRefreshTokenTimeout = 5;
 
-const REFRESH_TOKEN_THRESHOLD = 32 * 60 * 1000; // 32 minutes
-
 const safeDecodeJwt = (accessToken: string) => {
   try {
     return decodeJwt(accessToken);
@@ -72,11 +70,11 @@ async function refreshAccessToken(token: Token) {
         logger.info(
           `Refreshing token: expires - ${new Date(Number(localToken.token?.accessTokenExpires))} now - ${new Date(
             Date.now(),
-          )}, expires - threshold: ${new Date(Number(localToken.token?.accessTokenExpires) - REFRESH_TOKEN_THRESHOLD)}`,
+          )}, expires - threshold: ${new Date(Number(localToken.token?.accessTokenExpires))}`,
         );
         if (
           typeof localToken.token?.accessTokenExpires === 'number' &&
-          Date.now() < localToken.token.accessTokenExpires - REFRESH_TOKEN_THRESHOLD
+          Date.now() < localToken.token.accessTokenExpires
         ) {
           return localToken.token;
         }
@@ -223,7 +221,7 @@ export const callbacks: Partial<CallbacksOptions<Profile & { job_title?: string 
     const timeLeft =
       typeof options.token.accessTokenExpires === 'number' && options.token.accessTokenExpires - Date.now();
 
-    if (timeLeft && timeLeft > REFRESH_TOKEN_THRESHOLD) {
+    if (timeLeft && timeLeft > 0) {
       return {
         ...options.token,
         user: getUser(options.token.access_token),

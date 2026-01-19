@@ -12,15 +12,13 @@ import { Space } from '@/components/common/Space/Space';
 import { ToggleSwitch } from '@/components/common/ToggleSwitch/ToggleSwitch';
 import { AllowedIconsTypes, BytesInKb, MindmapIconsFolderName, NEW_QUESTION_LABEL } from '@/constants/app';
 import { MAX_NODE_ICON_FILE_SIZE_KB } from '@/constants/settings';
-import { ApplicationSelectors } from '@/store/builder/application/application.reducer';
 import { BuilderActions } from '@/store/builder/builder/builder.reducers';
 import { CompletionActions } from '@/store/builder/completion/completion.reducers';
-import { FilesActions } from '@/store/builder/files/files.reducers';
-import { useBuilderDispatch, useBuilderSelector } from '@/store/builder/hooks';
+import { GraphActions } from '@/store/builder/graph/graph.reducers';
+import { useBuilderDispatch } from '@/store/builder/hooks';
 import { UIActions } from '@/store/builder/ui/ui.reducers';
 import { EdgeDirectionType } from '@/types/graph';
 import { constructPath, prepareFileName } from '@/utils/app/file';
-import { getDecodedFolderPath } from '@/utils/app/folders';
 import { isNodeStatus } from '@/utils/app/graph/typeGuards';
 
 import ContextMenu from '../../common/ContextMenu';
@@ -76,9 +74,6 @@ const NodeEditor = () => {
     handleBlur('questions', updated);
   };
 
-  const mindmapFolder = useBuilderSelector(ApplicationSelectors.selectMindmapFolder);
-  const folderPath = getDecodedFolderPath(mindmapFolder ?? '', constructPath(MindmapIconsFolderName, focusNode.id));
-
   const handleSelectIconFile = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(e.target.files || []);
@@ -91,48 +86,25 @@ const NodeEditor = () => {
 
       filteredFiles.forEach(file => {
         const fileName = prepareFileName(file.name);
-        const fileId = constructPath(folderPath, fileName);
         const iconPath = constructPath(MindmapIconsFolderName, focusNode.id, fileName) + `?ts=${Date.now()}`;
 
-        let iconNameToReplace;
-        let iconFileIdToReplace;
-        if (focusNode.icon) {
-          const prevName = focusNode.icon.split('?')[0];
-          const prevId = constructPath(getDecodedFolderPath(mindmapFolder ?? ''), prevName);
-          if (prevId !== fileId) {
-            iconNameToReplace = prevName;
-            iconFileIdToReplace = prevId;
-          }
-        }
-
         dispatch(
-          FilesActions.replaceIcon({
-            fileContent: file,
-            id: fileId,
-            relativePath: folderPath,
+          BuilderActions.uploadIcon({
+            file,
             name: fileName,
             nodeId: focusNode.id,
             iconPath,
-            iconNameToReplace,
-            iconFileIdToReplace,
           }),
         );
-        handleBlur('icon', iconPath);
       });
       e.target.value = '';
     },
-    [dispatch, focusNode, folderPath, handleBlur, mindmapFolder],
+    [dispatch, focusNode, handleBlur],
   );
 
-  const handleDeleteIcon = useCallback(
-    (name: string) => {
-      const fileName = name.split('?')[0];
-      const fileId = constructPath(getDecodedFolderPath(mindmapFolder ?? ''), fileName);
-      dispatch(FilesActions.deleteIcon({ fileId, fileName }));
-      handleBlur('icon', '');
-    },
-    [dispatch, handleBlur, mindmapFolder],
-  );
+  const handleDeleteIcon = useCallback(() => {
+    handleBlur('icon', '');
+  }, [handleBlur]);
 
   const handleRegenerateAnswer = useCallback(() => {
     dispatch(
@@ -156,6 +128,12 @@ const NodeEditor = () => {
       }
     }
   }, [dispatch, focusNode.id, focusNode.questions]);
+
+  const closeEditor = useCallback(() => {
+    dispatch(UIActions.setIsNodeEditorOpen(false));
+    dispatch(GraphActions.setFocusNodeId(''));
+    dispatch(GraphActions.refresh());
+  }, [dispatch]);
 
   const handleQuestionBlur = (val: string, idx: number) => {
     const trimmed = val.trim();
@@ -192,7 +170,7 @@ const NodeEditor = () => {
   };
 
   return (
-    <div className="absolute flex size-full flex-1 flex-col gap-4 rounded bg-layer-3 text-left shadow-mindmap">
+    <div className="absolute flex size-full flex-1 flex-col gap-4 overflow-hidden rounded bg-layer-3 text-left shadow-mindmap">
       <div className="px-5 pt-5 text-base font-semibold">{isMessageStreaming ? 'Generating node...' : 'Details'}</div>
       <div className="absolute right-2 top-2 flex gap-2">
         <div className="text-secondary hover:cursor-pointer hover:text-primary">
@@ -217,10 +195,7 @@ const NodeEditor = () => {
             ]}
           />
         </div>
-        <div
-          className="text-secondary hover:cursor-pointer hover:text-primary"
-          onClick={() => dispatch(UIActions.setIsNodeEditorOpen(false))}
-        >
+        <div className="text-secondary hover:cursor-pointer hover:text-primary" onClick={closeEditor}>
           <IconX />
         </div>
       </div>
@@ -323,6 +298,9 @@ const NodeEditor = () => {
                   height={380}
                   previewOptions={{
                     rehypePlugins: [[rehypeSanitize]],
+                    components: {
+                      a: props => <a {...props} target="_blank" rel="noopener noreferrer" />,
+                    },
                   }}
                   className="details-markdowm"
                   onBlur={() => handleBlur('details', field.value)}
@@ -388,7 +366,7 @@ const NodeEditor = () => {
                         <div
                           onClick={event => {
                             event.preventDefault();
-                            handleDeleteIcon(value);
+                            handleDeleteIcon();
                           }}
                         >
                           <IconX className="cursor-pointer text-secondary hover:text-accent-primary" size={18} />

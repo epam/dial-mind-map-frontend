@@ -9,4 +9,6 @@ export const selectRecaptchaSiteKey = createSelector([rootSelector], state => st
 
 export const selectIsRecaptchaRequired = createSelector([rootSelector], state => state.isRecaptchaRequired);
 
+export const selectIsRecaptchaConfigured = createSelector([rootSelector], state => state.isRecaptchaConfigured);
+
 export const selectAnonymSessionCsrfToken = createSelector([rootSelector], state => state.anonymCsrfToken);

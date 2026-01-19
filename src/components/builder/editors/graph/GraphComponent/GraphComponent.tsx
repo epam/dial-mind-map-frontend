@@ -5,12 +5,14 @@ import { IconChartBar, IconCurrentLocation } from '@tabler/icons-react';
 import { useLocalStorageState } from 'ahooks';
 import classNames from 'classnames';
 import cytoscape, { BaseLayoutOptions, Core, EdgeSingular, EventObject, NodeSingular, Singular } from 'cytoscape';
+import { Position } from 'cytoscape';
 import cxtmenu from 'cytoscape-cxtmenu';
 import edgehandles from 'cytoscape-edgehandles';
 import fcose from 'cytoscape-fcose';
 import popper from 'cytoscape-popper';
 import cloneDeep from 'lodash-es/cloneDeep';
 import isEqual from 'lodash-es/isEqual';
+import omit from 'lodash-es/omit';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef } from 'react';
 
 import Tooltip from '@/components/builder/common/Tooltip';
@@ -18,7 +20,7 @@ import { Space } from '@/components/common/Space/Space';
 import { ApplicationSelectors } from '@/store/builder/application/application.reducer';
 import { UpdateMode } from '@/store/builder/graph/graph.types';
 import { useBuilderSelector } from '@/store/builder/hooks';
-import { Edge, EdgeType, Element, GraphElement, Node, NodeStatus, PositionedElement } from '@/types/graph';
+import { Edge, EdgeType, Element, GraphElement, Node, NodeStatus, PositionedElement, ReverseEdge } from '@/types/graph';
 import { uuidv4 } from '@/utils/common/uuid';
 
 import { Statistics } from './components/Statistics';
@@ -30,6 +32,7 @@ import {
   NodeNavigationDuration,
 } from './options';
 import { getClickPosition } from './utils/graph/edges';
+import { mergeBidirectionalEdges } from './utils/graph/mergeBidirectionalEdges';
 import { getAvgEdgesPerNode, havePositions } from './utils/graph/metrics';
 import { adjustFocusAndRootElementsStyles } from './utils/styles/styles';
 
@@ -47,6 +50,7 @@ interface Props {
   updateSignal: number;
   updateMode: UpdateMode;
   areGeneretadEdgesShowen: boolean;
+  isProdEnv: boolean;
   onFocusNodeChange: (node: Node) => void;
   onEdgeDelete: (edge: Edge) => void;
   onEdgeCreate: (edge: Edge) => void;
@@ -56,6 +60,7 @@ interface Props {
   onNodeCreate: (node: PositionedElement<Node>) => void;
   onNodeDelete: (node: Node, edgesIds: string[]) => void;
   onSetNodeAsRoot: (nodeId: string) => void;
+  onPatchEdges: ({ edges, edgesIdsToDelete }: { edges?: Element<Edge>[]; edgesIdsToDelete?: string[] }) => void;
 }
 
 const GraphComponent = ({
@@ -67,6 +72,7 @@ const GraphComponent = ({
   updateSignal,
   updateMode,
   areGeneretadEdgesShowen,
+  isProdEnv,
   onFocusNodeChange,
   onEdgeDelete,
   onEdgeCreate,
@@ -76,7 +82,10 @@ const GraphComponent = ({
   onNodeCreate,
   onNodeDelete,
   onSetNodeAsRoot,
+  onPatchEdges,
 }: Props) => {
+  cytoscape.warnings(!isProdEnv);
+
   const cyHtmlTagRef = useRef<HTMLDivElement>(null);
   const arePositionsSavedRef = useRef<boolean>(false);
   const isForcedPositionsSaveRef = useRef<boolean>(false);
@@ -87,7 +96,7 @@ const GraphComponent = ({
     defaultValue: false,
   });
 
-  const mindmapFolder = useBuilderSelector(ApplicationSelectors.selectMindmapFolder);
+  const mindmapId = useBuilderSelector(ApplicationSelectors.selectApplicationName);
 
   const nodeClickHandler = useCallback(
     (event: EventObject) => {
@@ -97,10 +106,35 @@ const GraphComponent = ({
     [onFocusNodeChange],
   );
 
+  const createPositionedNode = useCallback(
+    (cy: Core, position: Position) => {
+      const node = {
+        data: {
+          id: uuidv4(),
+          label: 'New node',
+          details: '',
+          questions: [''],
+          status: NodeStatus.Draft,
+        },
+        position,
+      } as PositionedElement<Node>;
+
+      onNodeCreate(cloneDeep(node));
+      cy.add({
+        ...node,
+        group: 'nodes',
+        // selected for some reason will not style the node
+        // classes might be an alternative
+        selected: true,
+      });
+    },
+    [onNodeCreate],
+  );
+
   const cyRef = useRef<Core | null>(null);
   const prevRef = useRef<HTMLDivElement | null>(null);
 
-  const cytoscapeStyles = useMemo(() => getCytoscapeStyles(mindmapFolder ?? ''), [mindmapFolder]);
+  const cytoscapeStyles = useMemo(() => getCytoscapeStyles(mindmapId ?? ''), [mindmapId]);
 
   prevRef.current = cyHtmlTagRef.current;
 
@@ -115,6 +149,8 @@ const GraphComponent = ({
       } else {
         graphElements = cloneDeep(elements);
       }
+
+      graphElements = mergeBidirectionalEdges(graphElements);
 
       if (!isPositionedGraph) {
         layout = getFcoseLayoutOptions(elements);
@@ -145,26 +181,8 @@ const GraphComponent = ({
 
       cy.on('dbltap', event => {
         // Check if the event target is the core (empty space)
-        if (event.target === cy && onNodeCreate) {
-          const node = {
-            data: {
-              id: uuidv4(),
-              label: 'New node',
-              details: '',
-              questions: [''],
-              status: NodeStatus.Draft,
-            },
-            position: event.position,
-          } as PositionedElement<Node>;
-
-          onNodeCreate(cloneDeep(node));
-          cy.add({
-            ...node,
-            group: 'nodes',
-            // selected for some reason will not style the node
-            // classes might be an alternative
-            selected: true,
-          });
+        if (event.target === cy) {
+          createPositionedNode(cy, event.position);
         }
       });
 
@@ -295,9 +313,10 @@ const GraphComponent = ({
       graphElements = cloneDeep(elements);
     }
 
-    cyRef.current.json({
-      elements: graphElements,
-    });
+    graphElements = mergeBidirectionalEdges(graphElements);
+
+    cyRef.current.elements().remove();
+    cyRef.current.add(graphElements);
 
     adjustFocusAndRootElementsStyles(cyRef.current, focusNodeId, focusEdgeId, rootNodeId);
 
@@ -380,8 +399,11 @@ const GraphComponent = ({
         const selectedEdge = cyRef.current!.edges(':selected')?.first();
 
         if (selectedEdge?.id()) {
-          if (onEdgeDelete) {
+          const reverseEdge = selectedEdge.data('reverseEdge');
+          if (!reverseEdge) {
             onEdgeDelete(selectedEdge.data() as Edge);
+          } else {
+            onPatchEdges({ edgesIdsToDelete: [selectedEdge.id(), reverseEdge.id] });
           }
           cyRef.current!.remove(selectedEdge);
         }
@@ -389,7 +411,14 @@ const GraphComponent = ({
         const selectedNode = cyRef.current!.nodes(':selected')?.first();
         if (selectedNode?.id()) {
           if (onNodeDelete) {
-            const edgesIds = selectedNode.connectedEdges().map(e => e.id());
+            const edgesIds: string[] = [];
+            selectedNode.connectedEdges().forEach(edge => {
+              edgesIds.push(edge.id());
+              const reverseEdge = edge.data('reverseEdge');
+              if (reverseEdge) {
+                edgesIds.push(reverseEdge.id);
+              }
+            });
             onNodeDelete(selectedNode.data() as Node, edgesIds);
           }
           cyRef.current!.remove(selectedNode);
@@ -402,26 +431,12 @@ const GraphComponent = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [cyRef.current, onEdgeDelete, onNodeDelete]);
+  }, [cyRef.current, onEdgeDelete, onNodeDelete, onPatchEdges]);
 
   useEffect(() => {
     if (!cyRef.current) return;
 
     window.cy = cyRef.current;
-
-    const eh = cyRef.current.edgehandles({
-      snapThreshold: 0,
-      disableBrowserGestures: true,
-      canConnect: (source: NodeSingular, target: NodeSingular) => {
-        if (source.id() === target.id()) return false;
-
-        const existingEdge = window.cy.edges(
-          `[source = "${source.id()}"][target = "${target.id()}"][type != "Generated"]`,
-        );
-
-        return existingEdge.length === 0;
-      },
-    });
 
     let popperTop: any, popperBottom: any, popperLeft: any, popperRight: any;
     let popperNode: NodeSingular | null = null;
@@ -452,6 +467,75 @@ const GraphComponent = ({
         },
       });
     };
+
+    const eh = cyRef.current.edgehandles({
+      snapThreshold: 0,
+      disableBrowserGestures: true,
+      canConnect: (source: NodeSingular, target: NodeSingular) => {
+        if (source.id() === target.id()) return false;
+
+        const cy = window.cy;
+
+        const forwardAll = cy.edges(`[source="${source.id()}"][target="${target.id()}"]`);
+        const backwardAll = cy.edges(`[source="${target.id()}"][target="${source.id()}"]`);
+
+        const forwardLimited = forwardAll.filter(e => e.data('type') !== EdgeType.Generated);
+        const backwardLimited = backwardAll.filter(e => e.data('type') !== EdgeType.Generated);
+
+        const noForwardLimited = forwardLimited.length === 0;
+        const noBackwardLimited = backwardLimited.length === 0;
+        const noForwardAll = forwardAll.length === 0;
+        const noBackwardAll = backwardAll.length === 0;
+
+        const onlyOriginalForward =
+          !!originalEdge && forwardAll.length === 1 && forwardAll[0].id() === originalEdge.id();
+
+        const noBidirectionalBackwardLimited = !backwardLimited.some(e => !!e.data('reverseEdge'));
+        const noBidirectionalBackwardAll = !backwardAll.some(e => !!e.data('reverseEdge'));
+
+        if (originalEdge) {
+          const isBidirectional = !!originalEdge.data('reverseEdge');
+          const isDashedEdge = originalEdge.data('type') === EdgeType.Generated;
+
+          if (onlyOriginalForward) {
+            // Allow moving the exact same edge (e.g., upgrading from generated -> manual)
+            return true;
+          }
+
+          if (isDashedEdge) {
+            if (isBidirectional) {
+              // Allow moving a bidirectional dashed edge
+              // only if there are absolutely no other edges between the nodes (any type, any direction).
+              return noForwardAll && noBackwardAll;
+            }
+
+            // Allow dashed edge only when there's no forward edge of any type
+            // and no backward edge that is bidirectional (consider all types for backward)
+            return noForwardAll && noBidirectionalBackwardAll;
+          }
+
+          if (isBidirectional) {
+            // Allow bi-edges to override dashed edges only when there's no manual edge in either direction
+            return noForwardLimited && noBackwardLimited;
+          }
+
+          // Allow moving an existing non-dashed edge if it wouldn't create a duplicate:
+          // no forward edge of any type, and no backward manual/bi-edge conflict
+          if (noForwardAll && noBidirectionalBackwardLimited) {
+            return true;
+          }
+        } else {
+          // Creating a brand new edge: allow when there is no forward edge of any type
+          // and there are no backward manual/bi-edge conflicts
+          if (noForwardAll && noBidirectionalBackwardLimited) {
+            return true;
+          }
+        }
+
+        // Otherwise, forbid the connection
+        return false;
+      },
+    });
 
     const start = () => {
       if (popperNode) eh.start(popperNode);
@@ -529,6 +613,17 @@ const GraphComponent = ({
         const sourceNode = cyRef.current!.getElementById(edge.data('source')) as NodeSingular;
         eh.start(sourceNode);
       }
+
+      if (position === 'tail') {
+        const reverseEdge = edge.data('reverseEdge');
+
+        if (reverseEdge) {
+          originalEdge = edge;
+          edge.addClass('ghost-edge');
+          const sourceNode = cyRef.current!.getElementById((reverseEdge as ReverseEdge).source) as NodeSingular;
+          eh.start(sourceNode);
+        }
+      }
     };
 
     const handleEhComplete = (
@@ -537,22 +632,72 @@ const GraphComponent = ({
       _targetNode: NodeSingular,
       addedEdge: EdgeSingular,
     ) => {
-      const newEdge = addedEdge.data() as Edge;
+      const addedEdgeData = addedEdge.data() as Edge;
 
-      if (!originalEdge && onEdgeCreate) {
-        onEdgeCreate(cloneDeep(newEdge));
-      }
+      if (!originalEdge) {
+        const newEdge = cloneDeep(addedEdgeData);
 
-      if (originalEdge) {
+        if (newEdge.type !== EdgeType.Manual) {
+          newEdge.type = EdgeType.Manual;
+          addedEdge.data('type', EdgeType.Manual);
+        }
+
+        onEdgeCreate(newEdge);
+      } else {
+        const reverseEdge = (originalEdge.data() as Edge).reverseEdge;
+        const isBidirectionalEdge = !!reverseEdge;
+
         originalEdge.move({
-          source: addedEdge.data().source,
-          target: addedEdge.data().target,
+          source: addedEdgeData.source,
+          target: addedEdgeData.target,
         });
 
-        if (onEdgeUpdate) {
-          const edge = originalEdge.data() as Edge;
-          if (edge.type !== EdgeType.Manual) edge.type = EdgeType.Manual;
+        if (!isBidirectionalEdge) {
+          const edge = omit(originalEdge.data() as Edge, 'reverseEdge');
+          if (edge.type !== EdgeType.Manual) {
+            edge.type = EdgeType.Manual;
+            originalEdge.data('type', EdgeType.Manual);
+          }
           onEdgeUpdate(edge);
+        } else {
+          const originalEdgeId = originalEdge.id();
+
+          const forward = cyRef.current!.edges(
+            `[source = "${addedEdgeData.source}"][target = "${addedEdgeData.target}"][type != "Manual"][id != "${originalEdgeId}"][id != "${addedEdgeData.id}"]`,
+          );
+          const backward = cyRef.current!.edges(
+            `[source = "${addedEdgeData.target}"][target = "${addedEdgeData.source}"][type != "Manual"][id != "${originalEdgeId}"][id != "${addedEdgeData.id}"]`,
+          );
+
+          const edgesIdsToDelete = new Set<string>();
+
+          const deleteEdges = (e: EdgeSingular) => {
+            const edge = e.data() as Edge;
+            edgesIdsToDelete.add(edge.id);
+            e.remove();
+            if (edge.reverseEdge) {
+              edgesIdsToDelete.add(edge.reverseEdge.id);
+              cyRef.current!.$id(edge.reverseEdge.id).remove();
+            }
+          };
+
+          forward.forEach(deleteEdges);
+          backward.forEach(deleteEdges);
+
+          if (reverseEdge.type !== EdgeType.Manual) reverseEdge.type = EdgeType.Manual;
+          reverseEdge.source = addedEdge.data().target;
+          reverseEdge.target = addedEdge.data().source;
+
+          const edge = omit(originalEdge.data() as Edge, 'reverseEdge');
+          if (edge.type !== EdgeType.Manual) {
+            edge.type = EdgeType.Manual;
+            originalEdge.data('type', EdgeType.Manual);
+          }
+
+          onPatchEdges({
+            edges: [{ data: omit(edge, 'weight') }, { data: omit(reverseEdge, 'weight') }],
+            edgesIdsToDelete: Array.from(edgesIdsToDelete),
+          });
         }
 
         addedEdge.remove();
@@ -616,7 +761,14 @@ const GraphComponent = ({
           select: (ele: Singular) => {
             if (ele.isNode() && onNodeDelete) {
               const node = ele as NodeSingular;
-              const edgesIds = node.connectedEdges().map(e => e.id());
+              const edgesIds: string[] = [];
+              node.connectedEdges().forEach(edge => {
+                edgesIds.push(edge.id());
+                const reverseEdge = edge.data('reverseEdge') as ReverseEdge;
+                if (reverseEdge) {
+                  edgesIds.push(reverseEdge.id);
+                }
+              });
               onNodeDelete(node.data(), edgesIds);
             }
             ele.remove();
@@ -641,10 +793,30 @@ const GraphComponent = ({
         {
           content: 'Delete',
           select: (ele: Singular) => {
-            if (ele.isEdge()) {
+            const reverseEdge = ele.data('reverseEdge') as ReverseEdge;
+            if (!reverseEdge) {
               onEdgeDelete(ele.data());
+            } else {
+              onPatchEdges({ edgesIdsToDelete: [ele.id(), reverseEdge.id] });
             }
+
             ele.remove();
+          },
+        },
+      ],
+      openMenuEvents: 'cxttapstart',
+    });
+
+    const coreMenu = cyRef.current.cxtmenu({
+      menuRadius: 100,
+      selector: 'core',
+      commands: [
+        {
+          content: 'Create node',
+          select: (ele: Singular | null, event?: EventObject) => {
+            if (!event || !cyRef.current) return;
+
+            createPositionedNode(cyRef.current, event.position);
           },
         },
       ],
@@ -654,6 +826,7 @@ const GraphComponent = ({
     return () => {
       nodesMenu.destroy();
       edgesMenu.destroy();
+      coreMenu.destroy();
     };
   }, [cyRef.current]);
 

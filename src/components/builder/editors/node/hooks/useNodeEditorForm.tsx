@@ -1,4 +1,5 @@
 import { yupResolver } from '@hookform/resolvers/yup';
+import isEqual from 'lodash-es/isEqual';
 import { useCallback, useEffect } from 'react';
 import { Path, PathValue, useForm } from 'react-hook-form';
 
@@ -80,13 +81,40 @@ export const useNodeEditorForm = () => {
     [dispatch, focusNode],
   );
 
+  const getPrevValue = useCallback(
+    <TField extends Path<FormValues>>(field: TField): PathValue<FormValues, TField> => {
+      switch (field) {
+        case 'label':
+          return focusNode.label as PathValue<FormValues, TField>;
+        case 'icon':
+          return (focusNode.icon ?? '') as PathValue<FormValues, TField>;
+        case 'details':
+          return (focusNode.details ?? '') as PathValue<FormValues, TField>;
+        case 'status':
+          return focusNode.status as PathValue<FormValues, TField>;
+        case 'neon':
+          return (focusNode.neon ?? false) as PathValue<FormValues, TField>;
+        case 'questions':
+          return (focusNode.questions ?? []).filter(Boolean).map(q => ({ text: q })) as PathValue<FormValues, TField>;
+        default:
+          return getValues(field);
+      }
+    },
+    [focusNode, getValues],
+  );
+
   const handleBlur = useCallback(
     <TFieldName extends Path<FormValues>>(field: TFieldName, value: PathValue<FormValues, TFieldName>) => {
       if (isMessageStreaming) return;
+
+      const prev = getPrevValue(field);
+
+      if (isEqual(prev, value)) return;
+
       setValue(field, value, { shouldValidate: true });
       handleSubmit(onSubmit)();
     },
-    [focusNode, isMessageStreaming, dispatch, handleSubmit, setValue],
+    [handleSubmit, getPrevValue, isMessageStreaming, onSubmit, setValue],
   );
 
   return { control, register, errors, handleBlur, focusNode, isMessageStreaming, getValues, setValue };

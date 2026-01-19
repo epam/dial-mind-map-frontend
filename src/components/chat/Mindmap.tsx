@@ -1,5 +1,3 @@
-'use client';
-
 import classNames from 'classnames';
 import { useCallback, useMemo, useRef } from 'react';
 
@@ -8,6 +6,7 @@ import { ApplicationSelectors } from '@/store/chat/application/application.reduc
 import { ConversationActions } from '@/store/chat/conversation/conversation.reducers';
 import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
 import { MindmapActions, MindmapSelectors } from '@/store/chat/mindmap/mindmap.reducers';
+import { SettingsSelectors } from '@/store/chat/settings/settings.reducers';
 import { ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
 import { IconResourceKey } from '@/types/customization';
 import { Node } from '@/types/graph';
@@ -21,8 +20,8 @@ import { ReferenceFullscreenView } from './reference/ReferenceFullscreenView';
 
 export const Mindmap = () => {
   const dispatch = useChatDispatch();
+
   const fullscreenReferences = useChatSelector(MindmapSelectors.selectFullscreenReferences);
-  const mindmapFolder = useChatSelector(ApplicationSelectors.selectMindmapFolder);
   const elements = useChatSelector(MindmapSelectors.selectGraphElements);
   const isReady = useChatSelector(MindmapSelectors.selectIsReady);
   const focusNodeId = useChatSelector(MindmapSelectors.selectFocusNodeId);
@@ -33,28 +32,40 @@ export const Mindmap = () => {
   const deviceType = useChatSelector(ChatUISelectors.selectDeviceType);
   const hasAppReference = useChatSelector(ApplicationSelectors.selectHasAppReference);
   const hasAppProperties = useChatSelector(ApplicationSelectors.selectHasAppProperties);
-  const viewRef = useRef(null);
   const isNotFound = useChatSelector(MindmapSelectors.selectIsNotFound);
   const isRootNodeNotFound = useChatSelector(MindmapSelectors.selectIsRootNodeNotFound);
-
   const themeConfig = useChatSelector(AppearanceSelectors.selectThemeConfig);
-  let fontFamily = themeConfig?.graph?.font?.['font-family'] || themeConfig?.font?.['font-family'] || '';
+  const isProdEnv = useChatSelector(SettingsSelectors.selectIsProdEnv);
 
-  const errorTittle = useMemo(() => {
-    if (isRootNodeNotFound) {
-      return 'Root node not set.';
-    }
-    return 'Mindmap is not available.';
+  const viewRef = useRef<HTMLDivElement | null>(null);
+
+  const isDesktop = deviceType === DeviceType.Desktop;
+  const chatIsOnLeft = themeConfig?.chat?.chatSide === 'left';
+
+  let fontFamily = themeConfig?.graph?.font?.['font-family'] || themeConfig?.font?.['font-family'] || undefined;
+
+  const { isReady: webFontReady, status: webFontStatus } = useWebFontReady(fontFamily ?? '');
+
+  let isFontReady = !fontFamily || webFontReady;
+  if (webFontStatus === 'timeout') {
+    fontFamily =
+      fontFamily !== themeConfig?.font?.['font-family'] && themeConfig?.font?.['font-family']
+        ? themeConfig?.font?.['font-family']
+        : undefined;
+    isFontReady = true;
+  }
+
+  const isGraphReady = hasAppReference && !!themeConfig?.graph && isFontReady;
+
+  const errorTitle = useMemo(() => {
+    return isRootNodeNotFound ? 'Root node not set.' : 'Mindmap is not available.';
   }, [isRootNodeNotFound]);
 
   const errorDescription = useMemo(() => {
-    if (isRootNodeNotFound) {
-      return 'Please configure a root node for your mindmap.';
-    }
-    return 'Please generate the graph.';
+    return isRootNodeNotFound ? 'Please configure a root node for your mindmap.' : 'Please generate the graph.';
   }, [isRootNodeNotFound]);
 
-  const focusNodeIdHandler = useCallback(
+  const handleFocusNode = useCallback(
     (node: Node) => {
       dispatch(MindmapActions.handleNavigation({ clickedNodeId: node.id, shouldFetchGraph: true }));
       dispatch(ConversationActions.setMessageSending({ isMessageSending: false }));
@@ -62,45 +73,46 @@ export const Mindmap = () => {
     [dispatch],
   );
 
-  const { isReady: fontIsLoaded, status: fontStatus } = useWebFontReady(fontFamily);
+  const containerClasses = classNames(
+    'relative h-full w-full flex gap-2',
+    isDesktop ? (chatIsOnLeft ? 'flex-row-reverse' : 'flex-row') : 'flex-col',
+    isMapHidden && 'justify-center items-center',
+  );
 
-  let isFontReady = !fontFamily || fontIsLoaded;
-  if (fontStatus === 'timeout') {
-    fontFamily =
-      fontFamily !== themeConfig?.font?.['font-family'] && themeConfig?.font?.['font-family']
-        ? themeConfig?.font?.['font-family']
-        : '';
-    isFontReady = true;
-  }
+  const heightClass = useMemo(() => {
+    if (isMapHidden) {
+      return 'h-full';
+    }
+    if (!isDesktop && !isChatHidden && fullscreenReferences && !isMapHidden) {
+      return 'h-[calc(50%-8px)]';
+    }
+    if (isChatHidden && !isDesktop) {
+      return 'h-[calc(87%-8px)]';
+    }
+    if (isDesktop) {
+      return 'h-full';
+    }
+    if (!isChatHidden && !fullscreenReferences && !isMapHidden) {
+      return 'h-1/2';
+    }
+  }, [isMapHidden, isChatHidden, fullscreenReferences, isDesktop]);
 
-  const isGraphReady = hasAppReference && themeConfig?.graph && isFontReady;
+  const maxHeightClass =
+    !isDesktop && isChatHidden && fullscreenReferences && !isMapHidden ? 'max-h-[calc(100%-121px)]' : undefined;
+
+  const mapPaneClasses = classNames(
+    !isMapHidden && 'relative',
+    !isDesktop && 'w-full',
+    isMapHidden ? 'invisible absolute w-full' : null,
+    isDesktop && !isMapHidden && 'flex-1 w-2/3',
+    heightClass,
+    maxHeightClass,
+  );
 
   return (
-    <div
-      className={classNames([
-        'relative h-full w-full flex flex-col  gap-2',
-        isMapHidden
-          ? 'justify-center items-center'
-          : themeConfig?.chat?.chatSide === 'left'
-            ? 'xl:flex-row-reverse'
-            : 'xl:flex-row',
-      ])}
-      ref={viewRef}
-    >
-      <div
-        className={classNames([
-          'relative w-full xl:flex-1 xl:h-full xl:w-2/3',
-          isMapHidden && '!w-0 !h-0 overflow-hidden',
-          isChatHidden && fullscreenReferences && 'h-[calc(87%-8px)]',
-          deviceType !== DeviceType.Desktop && isChatHidden && fullscreenReferences && 'max-h-[calc(100%-121px)]',
-          !isChatHidden && fullscreenReferences && !isMapHidden && 'h-[calc(50%-8px)]',
-          isChatHidden && !fullscreenReferences && 'h-full',
-          !isChatHidden && !fullscreenReferences && !isMapHidden && 'h-1/2',
-        ])}
-      >
-        {fullscreenReferences && (
-          <ReferenceFullscreenView references={fullscreenReferences} mindmapFolder={mindmapFolder} />
-        )}
+    <div className={containerClasses} ref={viewRef}>
+      <div className={mapPaneClasses}>
+        {fullscreenReferences && <ReferenceFullscreenView references={fullscreenReferences} />}
         {!isGraphReady ? null : hasAppProperties && !isNotFound && !isRootNodeNotFound ? (
           <GraphComponent
             graphConfig={themeConfig?.graph}
@@ -111,19 +123,17 @@ export const Mindmap = () => {
             isChatHidden={isChatHidden}
             visitedNodes={visitedNodes}
             updateSignal={updateSignal}
-            onFocusNodeChange={focusNodeIdHandler}
+            onFocusNodeChange={handleFocusNode}
             robotStorageIcon={themeConfig?.icons?.[IconResourceKey.RobotIcon]}
             arrowBackStorageIcon={themeConfig?.icons?.[IconResourceKey.ArrowBackIcon]}
+            isProdEnv={isProdEnv}
           />
         ) : (
-          <GraphError title={errorTittle} description={errorDescription} />
+          <GraphError title={errorTitle} description={errorDescription} />
         )}
       </div>
-      {deviceType === DeviceType.Unknown ? null : deviceType === DeviceType.Desktop ? (
-        <DesktopChat />
-      ) : (
-        <DraggableChat parentRef={viewRef} />
-      )}
+
+      {deviceType === DeviceType.Unknown ? null : isDesktop ? <DesktopChat /> : <DraggableChat parentRef={viewRef} />}
     </div>
   );
 };

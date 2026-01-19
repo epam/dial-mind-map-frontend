@@ -3,7 +3,6 @@ import { combineEpics } from 'redux-observable';
 import { catchError, EMPTY, filter, from, mergeMap, of, switchMap } from 'rxjs';
 import { fromFetch } from 'rxjs/fetch';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { ChatRootEpic } from '@/types/store';
 
 import { ApplicationSelectors } from '../application/application.reducer';
@@ -14,11 +13,6 @@ const downloadReferenceEpic: ChatRootEpic = (action$, state$) =>
   action$.pipe(
     filter(ReferenceActions.downloadSource.match),
     mergeMap(({ payload }) => {
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
       const appName = ApplicationSelectors.selectApplicationName(state$.value);
       const { sourceId, versionId, name } = payload;
 
@@ -28,7 +22,6 @@ const downloadReferenceEpic: ChatRootEpic = (action$, state$) =>
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            [MindmapUrlHeaderName]: mindmapFolder,
           },
         },
       ).pipe(

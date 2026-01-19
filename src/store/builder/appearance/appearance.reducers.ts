@@ -1,7 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-import { ChatNodeResourceKey, GraphImgResourceKey, IconResourceKey, ThemeConfig } from '@/types/customization';
+import {
+  ChatImgResourceKey,
+  ChatNodeResourceKey,
+  GraphImgResourceKey,
+  IconResourceKey,
+  ThemeConfig,
+} from '@/types/customization';
 
 import { BuilderRootState } from '..';
 
@@ -78,7 +84,7 @@ export const appearanceSlice = createSlice({
       {
         payload,
       }: PayloadAction<{
-        type: IconResourceKey | GraphImgResourceKey | ChatNodeResourceKey;
+        type: IconResourceKey | GraphImgResourceKey | ChatNodeResourceKey | ChatImgResourceKey;
         fileName: string;
         file: File;
       }>,

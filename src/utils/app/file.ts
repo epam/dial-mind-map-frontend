@@ -1,5 +1,6 @@
 import escapeRegExp from 'lodash-es/escapeRegExp';
 import { extensions } from 'mime-types';
+import { extname } from 'path';
 
 import { doesHaveDotsInTheEnd } from './common';
 
@@ -100,27 +101,6 @@ export const getExtensionsListForMimeType = (mimeType: string) => {
   }
 };
 
-export const getExtensionsListForMimeTypes = (mimeTypes: string[]) => {
-  return mimeTypes
-    .map(mimeType => getExtensionsListForMimeType(mimeType))
-    .flat()
-    .map(type => `.${type}`);
-};
-
-export const getShortExtensionsListFromMimeType = (mimeTypes: string[]) => {
-  return mimeTypes
-    .map(mimeType => {
-      if (mimeType.endsWith('/*')) {
-        return mimeType.replace('/*', 's');
-      }
-
-      return getExtensionsListForMimeType(mimeType)
-        .flat()
-        .map(type => `.${type}`);
-    })
-    .flat();
-};
-
 export const isAbsoluteUrl = (url: string): boolean => {
   const urlLower = url.toLowerCase();
   return ['data:', '//', 'http://', 'https://', 'file://', 'ftp://', 'mailto:', 'telnet://', 'api/files'].some(prefix =>
@@ -133,4 +113,21 @@ export const constructPath = (...values: (string | undefined | null)[]): string 
     .filter(Boolean)
     .map(value => value!.replace(/(^\/+|\/+$)/g, ''))
     .join('/');
+};
+
+const mimeTypes = {
+  '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+};
+
+export const getMimeFromFilename = (filename: string): string => {
+  const ext = extname(filename).toLowerCase();
+  return mimeTypes[ext as keyof typeof mimeTypes] || 'application/octet-stream';
 };

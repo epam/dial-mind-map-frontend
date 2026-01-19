@@ -1,5 +1,7 @@
 import { IconAlertTriangle } from '@tabler/icons-react';
+import { useLocalStorageState } from 'ahooks';
 
+import { ApplicationSelectors } from '@/store/builder/application/application.reducer';
 import { BuilderActions, BuilderSelectors } from '@/store/builder/builder/builder.reducers';
 import { useBuilderDispatch, useBuilderSelector } from '@/store/builder/hooks';
 import { GenerationStatus } from '@/types/sources';
@@ -14,6 +16,22 @@ interface GeneratingErrorViewProps {
 export const GeneratingErrorView: React.FC<GeneratingErrorViewProps> = ({ title, message }) => {
   const dispatch = useBuilderDispatch();
   const isGenerated = useBuilderSelector(BuilderSelectors.selectIsGenerated);
+  const applicationReference = useBuilderSelector(ApplicationSelectors.selectApplication)?.reference;
+  const [generationErrorSeen, setGenerationErrorSeen] = useLocalStorageState(`generation-error-seen`, {
+    defaultValue: {},
+  });
+
+  const setSeenError = () => {
+    if (applicationReference) {
+      setGenerationErrorSeen({
+        ...generationErrorSeen,
+        [applicationReference]: true,
+      });
+    }
+    if (isGenerated) {
+      dispatch(BuilderActions.fetchGraph());
+    }
+  };
 
   return (
     <div className="m-1 flex size-full flex-col items-center justify-center gap-7 text-center">
@@ -42,6 +60,7 @@ export const GeneratingErrorView: React.FC<GeneratingErrorViewProps> = ({ title,
               ),
             );
             dispatch(BuilderActions.setGeneratingStatus({ title: 'Graph generation' }));
+            setSeenError();
           }}
           variant="primary"
           label="Return to sources"

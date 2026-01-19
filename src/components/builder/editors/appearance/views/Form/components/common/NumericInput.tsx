@@ -13,6 +13,7 @@ interface Props {
   step?: number;
   placeholder?: string;
   wrapperClassNames?: string;
+  defaultValue?: number;
 }
 
 export const NumericInput = ({
@@ -26,6 +27,7 @@ export const NumericInput = ({
   step = 1,
   placeholder,
   wrapperClassNames,
+  defaultValue,
 }: Props) => {
   const [value, setValue] = useState(externalValue?.toString() ?? '');
 
@@ -34,7 +36,7 @@ export const NumericInput = ({
     if (stringified !== value) {
       setValue(stringified);
     }
-  }, [externalValue]);
+  }, [externalValue, value]);
 
   function handleChange(e: ChangeEvent<HTMLInputElement>) {
     let input = e.target.value;
@@ -63,7 +65,8 @@ export const NumericInput = ({
 
   function updateValue(increment: boolean) {
     const current = parseFloat(value);
-    let newValue = (isNaN(current) ? 0 : current) + (increment ? step : -step);
+    const initialValue = defaultValue ?? 0;
+    let newValue = (isNaN(current) ? initialValue : current) + (increment ? step : -step);
 
     if (newValue > max) newValue = max;
     if (newValue < min) newValue = min;
@@ -76,7 +79,7 @@ export const NumericInput = ({
   return (
     <div className={classNames(['flex flex-col', wrapperClassNames])}>
       {label && (
-        <label htmlFor={id} className="text-xs text-secondary">
+        <label htmlFor={id} className="w-fit text-xs text-secondary">
           {label}
         </label>
       )}

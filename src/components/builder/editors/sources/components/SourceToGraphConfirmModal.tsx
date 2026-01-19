@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 
-import Modal from '@/components/builder/common/Modal';
+import Modal from '@/components/common/Modal';
 import { ApplicationSelectors } from '@/store/builder/application/application.reducer';
 import { BuilderActions } from '@/store/builder/builder/builder.reducers';
 import { useBuilderDispatch, useBuilderSelector } from '@/store/builder/hooks';

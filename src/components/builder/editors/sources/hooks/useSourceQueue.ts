@@ -9,7 +9,8 @@ type Task =
   | { kind: 'update'; payload: Source }
   | { kind: 'delete'; payload: Source }
   | { kind: 'rename'; payload: { sourceId: string; name: string } }
-  | { kind: 'reindexSources'; payload: Source[] };
+  | { kind: 'reindexSources'; payload: Source[] }
+  | { kind: 'markAsApplied'; payload: { ids: string[] } };
 
 export function useSourceQueue() {
   const dispatch = useBuilderDispatch();
@@ -18,6 +19,10 @@ export function useSourceQueue() {
 
   const [queue, setQueue] = useState<Task[]>([]);
   const [current, setCurrent] = useState<Task | null>(null);
+
+  const enqueueMarkAsApplied = useCallback((ids: string[]) => {
+    setQueue(q => [...q, { kind: 'markAsApplied', payload: { ids } }]);
+  }, []);
 
   const enqueueLink = useCallback((payload: Omit<CreateSource, 'file'>) => {
     setQueue(q => [...q, { kind: 'create', payload }]);
@@ -81,6 +86,9 @@ export function useSourceQueue() {
       case 'reindexSources':
         dispatch(SourcesActions.reindexSources(next.payload));
         break;
+      case 'markAsApplied':
+        dispatch(SourcesActions.markAsApplied(next.payload));
+        break;
     }
   }, [current, queue, dispatch]);
 
@@ -123,6 +131,13 @@ export function useSourceQueue() {
         setCurrent(null);
       }
     }
+
+    if (kind === 'markAsApplied') {
+      const { ids } = payload;
+      if (globalSources.some(s => s.id && ids.includes(s.id) && s.in_graph)) {
+        setCurrent(null);
+      }
+    }
   }, [globalSources, sourcesNames, current]);
 
   const mapPayloadToValue = (sources: Source[], payload?: CreateSource | Source) => {
@@ -150,7 +165,7 @@ export function useSourceQueue() {
 
   const inProgressUrls = useMemo(() => {
     const queuedUrls = queue
-      .filter(task => task.kind !== 'reindexSources')
+      .filter(task => task.kind !== 'reindexSources' && task.kind !== 'rename' && task.kind !== 'markAsApplied')
       .map(task => mapPayloadToValue(globalSources, task.payload))
       .filter(Boolean) as string[];
 
@@ -158,7 +173,12 @@ export function useSourceQueue() {
     const currentUrls =
       current?.kind === 'reindexSources'
         ? current.payload.map(source => source.url)
-        : [mapPayloadToValue(globalSources, current?.payload)];
+        : [
+            mapPayloadToValue(
+              globalSources,
+              current?.kind === 'rename' || current?.kind === 'markAsApplied' ? undefined : current?.payload,
+            ),
+          ];
 
     return [...queuedUrls, ...reindexedUrls, ...currentUrls].filter(Boolean) as string[];
   }, [queue, current, globalSources]);
@@ -180,6 +200,7 @@ export function useSourceQueue() {
     current,
     inProgressUrls,
     deletingUrls,
+    enqueueMarkAsApplied,
   };
 }
 

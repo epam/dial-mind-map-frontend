@@ -1,6 +1,6 @@
 import { IconCircleCheck, IconEye, IconFileBroken } from '@tabler/icons-react';
 import classNames from 'classnames';
-import { memo } from 'react';
+import { type JSX, memo } from 'react';
 
 import { NodeStatusDict } from '@/constants/app';
 import { NodeStatus } from '@/types/graph';

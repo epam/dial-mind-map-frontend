@@ -40,6 +40,8 @@ interface Props {
   handleRefreshLink: (index: number) => void;
   isSimpleGenerationModeAvailable?: boolean;
   onPasteList: (links: string[]) => void;
+  onMarkAsApplied: (id?: string) => void;
+  isLiteMode: boolean;
 }
 
 export const SourcesTable: React.FC<Props> = ({
@@ -65,8 +67,9 @@ export const SourcesTable: React.FC<Props> = ({
   handleAddSource,
   handleSelectFiles,
   handleRefreshLink,
-  isSimpleGenerationModeAvailable,
   onPasteList,
+  onMarkAsApplied,
+  isLiteMode,
 }) => {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
@@ -99,6 +102,8 @@ export const SourcesTable: React.FC<Props> = ({
     generationStatus,
     handleRefreshLink,
     onPasteList,
+    onMarkAsApplied,
+    isLiteMode,
   });
 
   const table = useReactTable({
@@ -156,7 +161,7 @@ export const SourcesTable: React.FC<Props> = ({
   }, [selectedRows, fields, handleRowSelection, handleSelectionReset]);
 
   return (
-    <div className="flex w-full flex-col overflow-x-auto">
+    <div className="flex size-full flex-col overflow-x-auto">
       <table className="w-full min-w-[600px] table-fixed">
         {rows.length !== 0 && (
           <thead className="sticky top-0 z-10">
@@ -165,7 +170,7 @@ export const SourcesTable: React.FC<Props> = ({
                 <th
                   key={header.id}
                   className={classNames(
-                    'text-left pt-1 pb-2 px-4 h-9 text-secondary font-medium uppercase text-[11px] leading-[14px] font-bold',
+                    'text-left pb-1 px-4 h-8 text-secondary uppercase text-[11px] leading-[150%] font-bold',
                     header.id === 'source' && selectedRows.length && 'w-auto pl-6',
                     header.id === 'source' &&
                       !selectedRows.length &&
@@ -202,7 +207,6 @@ export const SourcesTable: React.FC<Props> = ({
               columnsCount={flatHeaders.length}
               handleAddSource={handleAddSource}
               handleSelectFiles={handleSelectFiles}
-              isSimpleGenerationModeAvailable={isSimpleGenerationModeAvailable}
             />
           ) : (
             rows.map(row => {
@@ -217,9 +221,9 @@ export const SourcesTable: React.FC<Props> = ({
                       key={rowId}
                       index={row.index}
                       field={source}
-                      editableIndex={editableIndex}
                       editMode={editMode}
-                      hoveredIndex={hoveredRow}
+                      isEdited={isEditing}
+                      isHovered={hoveredRow === row.index}
                       selectedRows={selectedRows}
                       isValid={isValid}
                       errors={errors}

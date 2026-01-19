@@ -9,13 +9,20 @@ import {
   DefaultVisitedNodeBgImageOpacity,
 } from '@/constants/app';
 import { DefaultCytoscapeLayoutSettings } from '@/constants/appearances/defaultConfig';
-import { CytoscapeLayoutSettings, GraphConfig, GraphImgResourceKey } from '@/types/customization';
+import {
+  CytoscapeLayoutSettings,
+  GraphConfig,
+  GraphImgResourceKey,
+  GraphNodeType,
+  NodeStylesKey,
+} from '@/types/customization';
 import { SystemNodeDataKeys } from '@/types/graph';
 import { getColorizedIconPath, getColorizedStorageIconPath } from '@/utils/app/graph/icons';
 
 import { getSystemImage, isSystemImg } from './utils/icons/icons';
 import { getNeonBackground } from './utils/styles/neonBackground';
-import { getHeight, getSingleImageBgOpacity, getWidth } from './utils/styles/styles';
+import { getMergedNodeStyles } from './utils/styles/settings';
+import { getSingleImageBgOpacity, getWidth } from './utils/styles/styles';
 
 export const AnimationDurationMs = 700;
 export const FitDurationMs = 200;
@@ -80,7 +87,6 @@ const NeonBoundsExpansion = 30;
 // const IconXNeonOffset = 15;
 
 interface StyleContext {
-  mindmapFolder: string;
   mindmapAppName: string;
   theme: string;
   config?: GraphConfig;
@@ -94,7 +100,6 @@ interface StyleContext {
 }
 
 export const getCytoscapeStyles = (
-  mindmapFolder: string,
   mindmapAppName: string,
   theme: string,
   config?: GraphConfig,
@@ -108,7 +113,6 @@ export const getCytoscapeStyles = (
   const defaultBgImg = config?.images?.[GraphImgResourceKey.DefaultBgImg];
 
   const context: StyleContext = {
-    mindmapFolder,
     mindmapAppName,
     theme,
     config,
@@ -174,13 +178,7 @@ function buildImagedStyles(ctx: StyleContext): cytoscape.StylesheetStyle[] {
           const isSystemIcon = isSystemImg(iconPath);
           if (ctx.useNodeIconAsBgImage && isSystemIcon) {
             if (ctx.defaultBgImg) {
-              icon = getColorizedStorageIconPath(
-                ctx.defaultBgImg,
-                color,
-                ctx.mindmapAppName,
-                ctx.theme,
-                ctx.mindmapFolder,
-              );
+              icon = getColorizedStorageIconPath(ctx.defaultBgImg, color, ctx.mindmapAppName, ctx.theme);
             }
           } else if (isSystemIcon) {
             icon = getSystemImage({
@@ -188,21 +186,14 @@ function buildImagedStyles(ctx: StyleContext): cytoscape.StylesheetStyle[] {
               customImg: ctx.robotStorageIcon,
               color,
               mindmapAppName: ctx.mindmapAppName,
-              mindmapFolder: ctx.mindmapFolder,
               theme: ctx.theme,
             });
           } else {
-            icon = getColorizedIconPath(iconPath, color, ctx.mindmapFolder);
+            icon = getColorizedIconPath(iconPath, color, ctx.mindmapAppName);
           }
 
           if (ctx.useNodeIconAsBgImage && ctx.maskImg) {
-            const maskImg = getColorizedStorageIconPath(
-              ctx.maskImg,
-              color,
-              ctx.mindmapAppName,
-              ctx.theme,
-              ctx.mindmapFolder,
-            );
+            const maskImg = getColorizedStorageIconPath(ctx.maskImg, color, ctx.mindmapAppName, ctx.theme);
 
             return [icon ?? 'none', maskImg ?? 'none'];
           } else {
@@ -242,17 +233,11 @@ function buildUnimagedStyles(ctx: StyleContext): cytoscape.StylesheetStyle {
         const color = node.data(SystemNodeDataKeys.TextColor);
 
         if (ctx.defaultBgImg) {
-          bgImg = getColorizedStorageIconPath(
-            ctx.defaultBgImg,
-            color,
-            ctx.mindmapAppName,
-            ctx.theme,
-            ctx.mindmapFolder,
-          );
+          bgImg = getColorizedStorageIconPath(ctx.defaultBgImg, color, ctx.mindmapAppName, ctx.theme);
         }
 
         if (ctx.maskImg) {
-          maskImg = getColorizedStorageIconPath(ctx.maskImg, color, ctx.mindmapAppName, ctx.theme, ctx.mindmapFolder);
+          maskImg = getColorizedStorageIconPath(ctx.maskImg, color, ctx.mindmapAppName, ctx.theme);
         }
 
         return [bgImg ?? 'none', maskImg ?? 'none'];
@@ -273,9 +258,15 @@ function buildNeonedStyles(ctx: StyleContext): cytoscape.StylesheetStyle[] {
     {
       selector: 'node[?neon][!icon]',
       style: {
-        width: getWidth,
-        height: getHeight,
-        'background-image': getNeonBackground,
+        'background-image': node => {
+          const type = node.data(SystemNodeDataKeys.NodeType) as GraphNodeType;
+          const customStyles = getMergedNodeStyles({ type, nodeStateStyles: ctx.config?.cytoscapeStyles.node });
+          const neonBackground =
+            node.hasClass('previous') || node.hasClass('visited') || node.hasClass('focused')
+              ? 'none'
+              : getNeonBackground(node, customStyles?.[NodeStylesKey.FontSize]);
+          return neonBackground;
+        },
         'background-image-opacity': 1,
         'bounds-expansion': NeonBoundsExpansion,
         'background-image-containment': 'over',
@@ -286,8 +277,12 @@ function buildNeonedStyles(ctx: StyleContext): cytoscape.StylesheetStyle[] {
       selector: 'node[?icon][?neon]',
       style: {
         'background-image': node => {
+          const type = node.data(SystemNodeDataKeys.NodeType) as GraphNodeType;
+          const customStyles = getMergedNodeStyles({ type, nodeStateStyles: ctx.config?.cytoscapeStyles.node });
           const neonBackground =
-            node.hasClass('previous') || node.hasClass('visited') ? 'none' : getNeonBackground(node);
+            node.hasClass('previous') || node.hasClass('visited') || node.hasClass('focused')
+              ? 'none'
+              : getNeonBackground(node, customStyles?.[NodeStylesKey.FontSize]);
           const iconPath = node.data('icon');
           const color = node.data(SystemNodeDataKeys.TextColor);
 
@@ -298,11 +293,10 @@ function buildNeonedStyles(ctx: StyleContext): cytoscape.StylesheetStyle[] {
               customImg: ctx.robotStorageIcon,
               color,
               mindmapAppName: ctx.mindmapAppName,
-              mindmapFolder: ctx.mindmapFolder,
               theme: ctx.theme,
             });
           } else {
-            icon = getColorizedIconPath(iconPath, color, ctx.mindmapFolder);
+            icon = getColorizedIconPath(iconPath, color, ctx.mindmapAppName);
           }
 
           return [icon ?? 'none', neonBackground];
@@ -331,7 +325,6 @@ function buildNeonedStyles(ctx: StyleContext): cytoscape.StylesheetStyle[] {
               customImg: ctx.arrowBackStorageIcon,
               color: node.data(SystemNodeDataKeys.TextColor),
               mindmapAppName: ctx.mindmapAppName,
-              mindmapFolder: ctx.mindmapFolder,
               theme: ctx.theme,
             }) ?? 'none';
           return [icon];
@@ -368,13 +361,7 @@ function buildVisitedAndPreviousNodeStyles(ctx: StyleContext): cytoscape.Stylesh
           const isSystemIcon = isSystemImg(iconPath);
           if (ctx.useNodeIconAsBgImage && isSystemIcon) {
             if (ctx.defaultBgImg) {
-              icon = getColorizedStorageIconPath(
-                ctx.defaultBgImg,
-                color,
-                ctx.mindmapAppName,
-                ctx.theme,
-                ctx.mindmapFolder,
-              );
+              icon = getColorizedStorageIconPath(ctx.defaultBgImg, color, ctx.mindmapAppName, ctx.theme);
             }
           } else if (isSystemIcon) {
             icon = getSystemImage({
@@ -382,17 +369,16 @@ function buildVisitedAndPreviousNodeStyles(ctx: StyleContext): cytoscape.Stylesh
               customImg: ctx.robotStorageIcon,
               color,
               mindmapAppName: ctx.mindmapAppName,
-              mindmapFolder: ctx.mindmapFolder,
               theme: ctx.theme,
             });
           } else {
-            icon = getColorizedIconPath(iconPath, color, ctx.mindmapFolder);
+            icon = getColorizedIconPath(iconPath, color, ctx.mindmapAppName);
           }
           icon = icon ?? 'none';
 
           let maskImg;
           if (ctx.maskImg) {
-            maskImg = getColorizedStorageIconPath(ctx.maskImg, color, ctx.mindmapAppName, ctx.theme, ctx.mindmapFolder);
+            maskImg = getColorizedStorageIconPath(ctx.maskImg, color, ctx.mindmapAppName, ctx.theme);
           }
 
           const arrowBackIcon =
@@ -401,7 +387,6 @@ function buildVisitedAndPreviousNodeStyles(ctx: StyleContext): cytoscape.Stylesh
               customImg: !ctx.useNodeIconAsBgImage ? ctx.arrowBackStorageIcon : undefined,
               color,
               mindmapAppName: ctx.mindmapAppName,
-              mindmapFolder: ctx.mindmapFolder,
               theme: ctx.theme,
             }) ?? 'none';
 
@@ -438,7 +423,6 @@ function buildVisitedAndPreviousNodeStyles(ctx: StyleContext): cytoscape.Stylesh
               customImg: !ctx.useNodeIconAsBgImage ? ctx.arrowBackStorageIcon : undefined,
               color,
               mindmapAppName: ctx.mindmapAppName,
-              mindmapFolder: ctx.mindmapFolder,
               theme: ctx.theme,
             }) ?? 'none';
 
@@ -450,17 +434,11 @@ function buildVisitedAndPreviousNodeStyles(ctx: StyleContext): cytoscape.Stylesh
           let maskImg;
 
           if (ctx.defaultBgImg) {
-            bgImg = getColorizedStorageIconPath(
-              ctx.defaultBgImg,
-              color,
-              ctx.mindmapAppName,
-              ctx.theme,
-              ctx.mindmapFolder,
-            );
+            bgImg = getColorizedStorageIconPath(ctx.defaultBgImg, color, ctx.mindmapAppName, ctx.theme);
           }
 
           if (ctx.maskImg) {
-            maskImg = getColorizedStorageIconPath(ctx.maskImg, color, ctx.mindmapAppName, ctx.theme, ctx.mindmapFolder);
+            maskImg = getColorizedStorageIconPath(ctx.maskImg, color, ctx.mindmapAppName, ctx.theme);
           }
 
           return [bgImg ?? 'none', maskImg ?? 'none', arrowBackIcon];

@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import Slider from 'react-slick';
 
@@ -7,30 +7,27 @@ import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
 import { MindmapActions, MindmapSelectors } from '@/store/chat/mindmap/mindmap.reducers';
 import { DocsReference, NodeReference } from '@/types/graph';
 
+import { ReferenceFooter } from './components/ReferenceFooter';
 import { ReferenceHeader } from './components/ReferenceHeader';
 import { useReferenceSlider } from './hooks/useReferenceSlider';
 
 interface Props {
   references: Array<DocsReference | NodeReference>;
-  mindmapFolder: string;
 }
 
-export const ReferenceFullscreenView: React.FC<Props> = ({ references, mindmapFolder }) => {
+export const ReferenceFullscreenView: React.FC<Props> = ({ references }) => {
   const dispatch = useChatDispatch();
   const containerRef = useRef<HTMLDivElement>(null);
   const fullscreenInitialSlide = useChatSelector(MindmapSelectors.selectFullscreenInitialSlide);
 
-  const onCloseFullscreenReferences = () => {
-    dispatch(MindmapActions.setFullscreenReferences(null));
-    dispatch(MindmapActions.setFullscreenInitialSlide(null));
-    dispatch(MindmapActions.setActiveFullscreenReferenceId(null));
-  };
+  const onCloseFullscreenReferences = useCallback(() => {
+    dispatch(MindmapActions.closeFullscreenReferences());
+  }, [dispatch]);
 
   useHotkeys(['esc'], () => onCloseFullscreenReferences());
 
   const { Title, current, prev, next, sliderRef, slides, settings } = useReferenceSlider({
     references,
-    mindmapFolder,
     isFullscreen: true,
     containerRef,
     initialSlideNumber: fullscreenInitialSlide ?? 0,
@@ -47,9 +44,8 @@ export const ReferenceFullscreenView: React.FC<Props> = ({ references, mindmapFo
           title={Title}
           current={current}
           total={references.length}
-          onPrev={prev}
-          onNext={next}
           onCloseFullscreen={onCloseFullscreenReferences}
+          isFullscreen
         />
       </div>
 
@@ -58,6 +54,8 @@ export const ReferenceFullscreenView: React.FC<Props> = ({ references, mindmapFo
           {slides}
         </Slider>
       </div>
+
+      <ReferenceFooter current={current} total={references.length} onPrev={prev} onNext={next} />
     </div>
   );
 };

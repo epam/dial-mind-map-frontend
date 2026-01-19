@@ -4,10 +4,11 @@ export interface Theme {
   'app-logo': string;
   'font-family'?: string;
   'font-codeblock'?: string;
+  'code-editor-theme'?: string;
   id: string;
 }
 
-export interface ThemesConfig {
+export interface ThemesConfigs {
   themes: Theme[];
   images: {
     'default-model': string;

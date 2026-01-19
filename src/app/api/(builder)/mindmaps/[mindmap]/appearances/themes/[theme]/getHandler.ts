@@ -3,30 +3,30 @@ import fetch from 'node-fetch';
 
 import { defaultConfig } from '@/constants/appearances/defaultConfig';
 import { errorsMessages } from '@/constants/errors';
-import { EtagHeaderName, MindmapUrlHeaderName } from '@/constants/http';
+import { EtagHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
 import { ThemeConfig } from '@/types/customization';
 import { HTTPMethod } from '@/types/http';
+import { decodeAppPathSafely } from '@/utils/app/application';
 import { getApiHeaders } from '@/utils/server/get-headers';
 import { logger } from '@/utils/server/logger';
 
 export const getThemeHandler = async (
   req: NextRequest,
   authParams: AuthParams,
-  { params }: { params: { mindmap: string; theme: string } },
+  { params }: { params: Promise<{ mindmap: string; theme: string }> },
 ) => {
-  const mindmapId = decodeURIComponent(params.mindmap);
-  const themeId = params.theme;
+  const { mindmap, theme: themeId } = await params;
+  const mindmapId = decodeAppPathSafely(mindmap);
 
   try {
     const response = await fetch(
-      `${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/appearances/themes/${themeId}`,
+      `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/appearances/themes/${themeId}`,
       {
         method: HTTPMethod.GET,
         headers: getApiHeaders({
           authParams: authParams,
           contentType: 'application/json',
-          [MindmapUrlHeaderName]: req.headers.get(MindmapUrlHeaderName) ?? undefined,
         }),
       },
     );

@@ -34,6 +34,8 @@ export const useSourceFileDrop = ({ watchedSources, handleAddSources }: UseSourc
         dispatch,
         AllowedSourceFilesTypesList,
         MAX_SOURCE_FILE_SIZE_MB * BytesInMb,
+        undefined,
+        true,
       );
 
       const duplicates = filtered.filter(f =>

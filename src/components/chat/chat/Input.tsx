@@ -10,17 +10,40 @@ import { ApplicationSelectors } from '@/store/chat/application/application.reduc
 import { ConversationActions, ConversationSelectors } from '@/store/chat/conversation/conversation.reducers';
 import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
 import { MindmapActions, MindmapSelectors } from '@/store/chat/mindmap/mindmap.reducers';
+import { ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
 import { Role } from '@/types/chat';
 import { uuidv4 } from '@/utils/common/uuid';
 
 export const Input = ({ classes }: { classes?: string }) => {
   const dispatch = useChatDispatch();
   const isMessageStreaming = useChatSelector(ConversationSelectors.selectIsMessageStreaming);
+  const isRelayoutInProgress = useChatSelector(MindmapSelectors.selectRelayoutInProgress);
   const hasAppProperties = useChatSelector(ApplicationSelectors.selectHasAppProperties);
   const isMindmapNotFound = useChatSelector(MindmapSelectors.selectIsNotFound);
   const isLastMessageError = useChatSelector(ConversationSelectors.selectIsLastMessageError);
   const conversation = useChatSelector(ConversationSelectors.selectConversation);
   const placeholder = useChatSelector(AppearanceSelectors.selectChatConfig)?.placeholder ?? ChatInputPlaceholder;
+  const isGraphFetching = useChatSelector(MindmapSelectors.selectIsGraphFetching);
+
+  const deviceType = useChatSelector(ChatUISelectors.selectDeviceType);
+  const isDesktop = deviceType === DeviceType.Desktop;
+  const isTablet = deviceType === DeviceType.Tablet;
+  const isMdUp = isTablet || isDesktop;
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const adjustHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = 'auto';
+    const style = window.getComputedStyle(textarea);
+    const borderTop = parseInt(style.borderTopWidth, 10);
+    const borderBottom = parseInt(style.borderBottomWidth, 10);
+
+    const newHeight = Math.min(textarea.scrollHeight + borderTop + borderBottom, 150);
+    textarea.style.height = `${newHeight}px`;
+  }, []);
 
   const messages = conversation.messages;
   const formRef = useRef<HTMLFormElement>(null);
@@ -87,11 +110,17 @@ export const Input = ({ classes }: { classes?: string }) => {
       onSubmit={async event => {
         event.preventDefault();
 
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+        }
+
         if (
           isMessageStreaming ||
           !hasAppProperties ||
           isMindmapNotFound ||
-          (isRecaptchaEnabled && (isCaptchaExecuting || !isCaptchaLoaded))
+          (isRecaptchaEnabled && (isCaptchaExecuting || !isCaptchaLoaded)) ||
+          isGraphFetching ||
+          isRelayoutInProgress
         ) {
           return;
         }
@@ -105,11 +134,22 @@ export const Input = ({ classes }: { classes?: string }) => {
         }
       }}
     >
-      <input
-        className={classNames([
-          'rounded-[3px] bg-layer-3 h-11 md:h-[48px] w-full py-[14px] pl-4 pr-14 text-base placeholder:text-sm placeholder:xl:text-base chat-footer__input',
+      <textarea
+        ref={textareaRef}
+        rows={1}
+        onInput={adjustHeight}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            formRef.current?.requestSubmit();
+          }
+        }}
+        className={classNames(
+          'flex rounded-[3px] bg-layer-3 w-full pl-4 pr-14 chat-footer__input resize-none grow max-h-[150px] overflow-y-auto',
+          isTablet ? 'py-[14px]' : 'py-[12px]',
+          isDesktop ? 'text-base placeholder:text-base' : 'text-sm placeholder:text-sm',
           (!hasAppProperties || isMindmapNotFound) && 'placeholder:text-controls-disable pointer-events-none',
-        ])}
+        )}
         placeholder={placeholder}
         name="message"
         disabled={
@@ -123,7 +163,8 @@ export const Input = ({ classes }: { classes?: string }) => {
         type="submit"
         disabled={!hasAppProperties || (isRecaptchaEnabled && (isCaptchaExecuting || !isCaptchaLoaded))}
         className={classNames([
-          'absolute right-3 top-1/2 -translate-y-1/2 hover:text-accent-primary hover:cursor-pointer group transition-colors duration-200 chat-footer__submit-btn',
+          'absolute right-3  hover:text-accent-primary hover:cursor-pointer group transition-colors duration-200 chat-footer__submit-btn',
+          isMdUp ? 'bottom-[12px]' : 'bottom-[10px]',
           !hasAppProperties ||
             (isRecaptchaEnabled &&
               (isCaptchaExecuting || !isCaptchaLoaded) &&
@@ -132,7 +173,7 @@ export const Input = ({ classes }: { classes?: string }) => {
         ])}
       >
         {!isLastMessageError ? (
-          <IconSend />
+          <IconSend stroke={1.5} />
         ) : (
           <Tooltip tooltip="Regenerate response" contentClassName="text-sm text-primary">
             <IconRefresh />

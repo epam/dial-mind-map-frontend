@@ -2,7 +2,6 @@ import { saveAs } from 'file-saver';
 import { catchError, EMPTY, filter, from, mergeMap, of, switchMap } from 'rxjs';
 import { fromFetch } from 'rxjs/fetch';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { BuilderRootEpic } from '@/types/store';
 
 import { ApplicationSelectors } from '../../application/application.reducer';
@@ -13,11 +12,6 @@ export const downloadSourceEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
     filter(SourcesActions.downloadSource.match),
     mergeMap(({ payload }) => {
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
       const appName = ApplicationSelectors.selectApplicationName(state$.value);
       const { sourceId, versionId, name } = payload;
 
@@ -27,7 +21,6 @@ export const downloadSourceEpic: BuilderRootEpic = (action$, state$) =>
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            [MindmapUrlHeaderName]: mindmapFolder,
           },
         },
       ).pipe(

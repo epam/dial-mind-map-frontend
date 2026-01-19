@@ -12,16 +12,15 @@ import { useState } from 'react';
 
 import { Space } from '@/components/common/Space/Space';
 import { Spinner } from '@/components/common/Spinner';
+import { ApplicationSelectors } from '@/store/chat/application/application.reducer';
 import { useChatSelector } from '@/store/chat/hooks';
 import { ChatUISelectors } from '@/store/chat/ui/ui.reducers';
 import { DocsReference } from '@/types/graph';
-import { constructPath } from '@/utils/app/file';
 
 GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
 interface PdfContentProps {
   reference: DocsReference;
-  folderPath: string;
   initialPage?: number;
 }
 
@@ -30,9 +29,10 @@ enum SelectionMode {
   Text = 'Text',
 }
 
-export const PdfContent: React.FC<PdfContentProps> = ({ reference, folderPath, initialPage = 1 }) => {
-  const { doc_url } = reference;
-  const pdfUrl = `/${constructPath('api', folderPath, doc_url)}`;
+export const PdfContent: React.FC<PdfContentProps> = ({ reference, initialPage = 1 }) => {
+  const name = useChatSelector(ApplicationSelectors.selectAppName) ?? '';
+  const pdfUrl = `/api/mindmaps/${encodeURIComponent(name)}/documents/${reference.doc_id}/versions/${reference.version}/file`;
+
   const theme = useChatSelector(ChatUISelectors.selectThemeName);
 
   const renderToolbar = (Toolbar: (props: ToolbarProps) => React.ReactElement) => (

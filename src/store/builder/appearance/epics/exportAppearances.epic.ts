@@ -1,8 +1,7 @@
 import { saveAs } from 'file-saver';
-import { EMPTY, from, of } from 'rxjs';
+import { from, of } from 'rxjs';
 import { catchError, concatMap, filter, mergeMap } from 'rxjs/operators';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { HTTPMethod } from '@/types/http';
 import { BuilderRootEpic } from '@/types/store';
 
@@ -16,15 +15,12 @@ export const exportAppearancesEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
     filter(AppearanceActions.exportAppearances.match),
     concatMap(() => {
-      const folder = ApplicationSelectors.selectMindmapFolder(state$.value);
       const name = ApplicationSelectors.selectApplicationName(state$.value);
       const applicationDisplayName = ApplicationSelectors.selectApplicationDisplayName(state$.value);
-      if (!folder) return EMPTY;
 
       return from(
         fetch(`/api/mindmaps/${encodeURIComponent(name)}/appearances/export`, {
           method: HTTPMethod.GET,
-          headers: { [MindmapUrlHeaderName]: folder },
         }),
       ).pipe(
         mergeMap(resp => checkForUnauthorized(resp)),

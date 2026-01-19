@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-import { Conversation, ConversationInfo, CustomFields, Message } from '@/types/chat';
+import { Conversation, ConversationInfo, CustomFields, LikeState, Message } from '@/types/chat';
 
 import * as ConversationSelectors from './conversation.selectors';
 import { ConversationState } from './conversation.types';
@@ -65,7 +65,10 @@ export const conversationSlice = createSlice({
         needToUpdateInBucket?: boolean;
       }>,
     ) => state,
-    updateConversationSuccess: (state, { payload }: PayloadAction<{ conversation: Partial<Conversation> }>) => {
+    updateConversationSuccess: (
+      state,
+      { payload }: PayloadAction<{ conversation: Partial<Conversation>; needToUpdateInBucket?: boolean }>,
+    ) => {
       state.conversation = {
         ...state.conversation,
         lastActivityDate: Date.now(),
@@ -94,7 +97,7 @@ export const conversationSlice = createSlice({
     addOrUpdateMessages: (
       state,
       action: PayloadAction<{
-        messages: Message[];
+        messages: (Message & { questions?: string[] })[];
         isInitialization?: boolean | null;
         needToUpdateInBucket?: boolean;
       }>,
@@ -136,11 +139,30 @@ export const conversationSlice = createSlice({
         message: string;
         response?: Response;
       }>,
-    ) => state,
+    ) => {
+      state.isMessageSending = false;
+    },
     streamMessageSuccess: state => state,
     setMessageSending: (state, action: PayloadAction<{ isMessageSending: boolean }>) => {
       state.isMessageSending = action.payload.isMessageSending;
     },
+    rateMessage: (
+      state,
+      _action: PayloadAction<{
+        messageIndex: number;
+        responseId: string;
+        rate: LikeState;
+        comment?: string;
+      }>,
+    ) => state,
+    rateMessageFail: (
+      state,
+      _action: PayloadAction<{
+        messageIndex: number;
+        responseId: string;
+        error: string;
+      }>,
+    ) => state,
   },
 });
 

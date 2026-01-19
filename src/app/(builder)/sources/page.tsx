@@ -5,6 +5,7 @@ import classNames from 'classnames';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef } from 'react';
 
+import { LoaderModal } from '@/components/builder/common/LoaderModal';
 import SourceEditor from '@/components/builder/editors/sources/SourcesEditor';
 import { GeneratingErrorView } from '@/components/builder/GeneratingErrorView';
 import { GeneratingLoaderView } from '@/components/builder/GeneratingLoaderView';
@@ -14,6 +15,7 @@ import { Forbidden } from '@/components/common/Forbidden';
 import Loader from '@/components/common/Loader';
 import { Login } from '@/components/common/Login';
 import { NetworkOfflineBanner } from '@/components/common/NetworkOfflineBanner';
+import { ServerUnavailableBanner } from '@/components/common/ServerUnavailableBanner';
 import { useApplicationInitializer } from '@/hooks/builder/sources/useApplicationInitializer';
 import { useHistoryHotKeys } from '@/hooks/builder/useHistoryHotKeys';
 import { useAuth } from '@/hooks/useAuth';
@@ -39,6 +41,7 @@ const SourcesPage = () => {
   const [isRedirect] = useRedirecting(router);
 
   const dialHost = useBuilderSelector(UISelectors.selectDialChatHost);
+  const dialIframeAllowedHosts = useBuilderSelector(UISelectors.selectDialIframeAllowedHosts);
   const mindmapIframeTitle = useBuilderSelector(UISelectors.selectMindmapIframeTitle);
   const isInitialized = useRef(false);
   const chatVisualizerConnector = useRef<ChatVisualizerConnector | null>(null);
@@ -67,25 +70,30 @@ const SourcesPage = () => {
     isAllowProvider,
   );
 
+  const isExportMindmapInProgress = useBuilderSelector(BuilderSelectors.selectIsMindmapExportInProgress);
+  const isImportMindmapInProgress = useBuilderSelector(BuilderSelectors.selectIsMindmapImportInProgress);
+
   useApplicationInitializer();
 
   useHistoryHotKeys();
 
   useEffect(() => {
     if (!isInitialized.current) {
-      if (!chatVisualizerConnector.current && dialHost && mindmapIframeTitle) {
-        chatVisualizerConnector.current = new ChatVisualizerConnector(dialHost, mindmapIframeTitle, () => {});
+      const host = dialIframeAllowedHosts?.length ? dialIframeAllowedHosts : dialHost;
+      if (!chatVisualizerConnector.current && host && mindmapIframeTitle) {
+        chatVisualizerConnector.current = new ChatVisualizerConnector(host, mindmapIframeTitle, () => {});
       }
 
-      if (dialHost && mindmapIframeTitle) {
+      if (host && mindmapIframeTitle) {
         chatVisualizerConnector.current?.sendReady();
         chatVisualizerConnector.current?.sendReadyToInteract();
       }
       isInitialized.current = true;
     }
-  }, [isInitialized, dialHost, mindmapIframeTitle]);
+  }, [isInitialized, dialHost, mindmapIframeTitle, dialIframeAllowedHosts]);
 
   const isOffline = useBuilderSelector(UISelectors.selectIsOffline);
+  const isServerUnavailable = useBuilderSelector(UISelectors.selectIsServerUnavailable);
 
   useEffect(() => {
     if (generationComplete) {
@@ -114,6 +122,9 @@ const SourcesPage = () => {
     if (generationStatus === GenerationStatus.NOT_STARTED || generationStatus === GenerationStatus.FINISHED) {
       return <SourceEditor />;
     }
+    if (isServerUnavailable) {
+      return <ServerUnavailableBanner />;
+    }
     if (isOffline) {
       return <NetworkOfflineBanner />;
     }
@@ -131,6 +142,9 @@ const SourcesPage = () => {
       >
         {getContent()}
       </div>
+      {(isExportMindmapInProgress || isImportMindmapInProgress) && (
+        <LoaderModal text={isExportMindmapInProgress ? 'Exporting' : isImportMindmapInProgress ? 'Importing' : ''} />
+      )}
     </>
   );
 };

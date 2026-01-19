@@ -1,26 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { errorsMessages } from '@/constants/errors';
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
 import { HTTPMethod } from '@/types/http';
+import { decodeAppPathSafely } from '@/utils/app/application';
 import { withAuth } from '@/utils/auth/withAuth';
 import { getApiHeaders } from '@/utils/server/get-headers';
 import { logger } from '@/utils/server/logger';
 import { withLogger } from '@/utils/server/withLogger';
 
-async function handlePost(req: NextRequest, authParams: AuthParams, { params }: { params: { mindmap: string } }) {
+async function handlePost(
+  req: NextRequest,
+  authParams: AuthParams,
+  { params }: { params: Promise<{ mindmap: string }> },
+) {
+  const { mindmap } = await params;
   try {
-    const mindmapId = decodeURIComponent(params.mindmap);
-    const backendUrl = `${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/appearances`;
-
+    const mindmapId = decodeAppPathSafely(mindmap);
+    const url = `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/appearances`;
     const headers = getApiHeaders({
       authParams,
       contentType: req.headers.get('content-type') as string,
-      [MindmapUrlHeaderName]: req.headers.get(MindmapUrlHeaderName) ?? undefined,
     });
 
-    const proxyRes = await fetch(backendUrl, {
+    const proxyRes = await fetch(url, {
       method: HTTPMethod.POST,
       headers,
       body: req.body,
@@ -45,7 +48,7 @@ async function handlePost(req: NextRequest, authParams: AuthParams, { params }: 
 
     return NextResponse.json({}, { status: 200 });
   } catch (error) {
-    logger.error({ error: error }, `Internal error happened during importing appearance for mindmap ${params.mindmap}`);
+    logger.error({ error: error }, `Internal error happened during importing appearance for mindmap ${mindmap}`);
     return new NextResponse(errorsMessages.generalServer, { status: 500 });
   }
 }

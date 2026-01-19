@@ -5,15 +5,15 @@ import { SystemNodeDataKeys } from '@/types/graph';
 
 import { getHeight, getWidth } from './styles';
 
-export const getNeonBackground = (node: NodeSingular) => {
+export const getNeonBackground = (node: NodeSingular, fontSize?: number) => {
   const color = node.data(SystemNodeDataKeys.BgColor);
   const isIcon = node.data('icon') ?? false;
 
-  const baseWidth = isIcon ? getWidth(node) + 16 + 10 : getWidth(node) + 16;
-  const baseHeight = getHeight(node) + 16;
+  const baseWidth = isIcon ? getWidth(node, fontSize) + 160 + 10 : getWidth(node, fontSize) + 16;
+  const baseHeight = getHeight(node, fontSize) + 16;
   const rectWidth = baseWidth;
   const rectHeight = baseHeight;
-  const svg = generateNeonSVG(color, rectWidth, rectHeight);
+  const svg = generateNeonSVG(color, rectWidth, rectHeight, node);
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 };
 
@@ -40,7 +40,7 @@ export const convertHexToNormalizedRgb = (hex: string): string => {
 };
 
 export const generateNeonSVG = memoize(
-  (color: string, rectWidth: number, rectHeight: number) => {
+  (color: string, rectWidth: number, rectHeight: number, node: NodeSingular) => {
     if (!color) return '';
     const padding = 160;
     const svgWidth = rectWidth + padding * 2;
@@ -49,6 +49,11 @@ export const generateNeonSVG = memoize(
     const filterY = -padding;
     const filterWidth = svgWidth + padding * 2;
     const filterHeight = svgHeight + padding * 2;
+
+    node.data('neonSvgSize', {
+      rectHeight,
+      rectWidth,
+    });
 
     const [r, g, b] = convertHexToNormalizedRgb(color).split(' ');
 

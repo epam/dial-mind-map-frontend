@@ -42,7 +42,7 @@ export const MobileSettings = () => {
       <button
         disabled={!hasAppProperties}
         className={classNames([
-          'mobile-menu-toggle-button size-11 flex justify-center items-center bg-layer-3 rounded text-secondary hover:text-accent-primary',
+          'self-end mobile-menu-toggle-button size-11 flex justify-center items-center bg-layer-3 rounded text-secondary hover:text-accent-primary',
           !hasAppProperties && 'pointer-events-none',
         ])}
         ref={refs.setReference}

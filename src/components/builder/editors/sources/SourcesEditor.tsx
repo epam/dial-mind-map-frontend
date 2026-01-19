@@ -1,3 +1,5 @@
+import { useLocalStorageState } from 'ahooks';
+import classNames from 'classnames';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -9,8 +11,9 @@ import { useBuilderDispatch, useBuilderSelector } from '@/store/builder/hooks';
 import { SourcesActions, SourcesSelectors } from '@/store/builder/sources/sources.reducers';
 import { UIActions, UISelectors } from '@/store/builder/ui/ui.reducers';
 import { GenerationType } from '@/types/generate';
-import { CreateSource, Source, SourceEditMode, SourceStatus, SourceType } from '@/types/sources';
+import { CreateSource, GenerationStatus, Source, SourceEditMode, SourceStatus, SourceType } from '@/types/sources';
 import { ToastType } from '@/types/toasts';
+import { getTotalActiveSourcesTokens } from '@/utils/app/sources';
 
 import { SimpleModeSettings } from './components/SimpleModeSettings';
 import { SourceEditorFooter } from './components/SourceEditorFooter';
@@ -33,6 +36,7 @@ export const SourceEditor: React.FC = () => {
 
   const isSimpleGenerationModeAvailable = useBuilderSelector(UISelectors.selectIsSimpleGenerationModeAvailable);
   const generationType = useBuilderSelector(BuilderSelectors.selectGenerationType);
+  const totalActiveSourcesTokens = useMemo(() => getTotalActiveSourcesTokens(globalSources), [globalSources]);
 
   const {
     enqueueLink,
@@ -43,6 +47,7 @@ export const SourceEditor: React.FC = () => {
     inProgressUrls,
     deletingUrls,
     enqueueReindexSources,
+    enqueueMarkAsApplied,
   } = useSourceQueue();
 
   const [editableIndex, setEditableIndex] = useState<number | null>(null);
@@ -85,6 +90,7 @@ export const SourceEditor: React.FC = () => {
     },
     [setSelectedRows],
   );
+
   const handleSourceSelection = useCallback(
     (sourceId: string) => {
       const index = fields.findIndex(f => f.id === sourceId);
@@ -189,6 +195,16 @@ export const SourceEditor: React.FC = () => {
       }
     },
     [append, enqueueFile, fields, trigger, insert, remove],
+  );
+
+  const handleMarkAsApplied = useCallback(
+    (id?: string) => {
+      if (id !== undefined) {
+        const ids = [id];
+        enqueueMarkAsApplied(ids);
+      }
+    },
+    [enqueueMarkAsApplied],
   );
 
   const handleConfirmAdd = useCallback(
@@ -381,6 +397,20 @@ export const SourceEditor: React.FC = () => {
     }
   }, [sourceIdToAddVersion, globalSources, fields, dispatch, handleEdit]);
 
+  const applicationReference = useBuilderSelector(ApplicationSelectors.selectApplication)?.reference;
+  const [generationErrorSeen, setGenerationErrorSeen] = useLocalStorageState(`generation-error-seen`, {
+    defaultValue: {},
+  });
+
+  const setNotSeenError = useCallback(() => {
+    if (applicationReference) {
+      setGenerationErrorSeen({
+        ...generationErrorSeen,
+        [applicationReference]: false,
+      });
+    }
+  }, [applicationReference, generationErrorSeen, setGenerationErrorSeen]);
+
   const handleGenerateGraph = useCallback(() => {
     dispatch(
       BuilderActions.generateMindmap({
@@ -388,7 +418,8 @@ export const SourceEditor: React.FC = () => {
         name: applicationName,
       }),
     );
-  }, [applicationName, dispatch, globalSources]);
+    setNotSeenError();
+  }, [applicationName, dispatch, globalSources, setNotSeenError]);
 
   const handleApplySelectionToGraph = useCallback(() => {
     const selectedSources = selectedRows.map(sr => fields[sr].id!);
@@ -408,6 +439,18 @@ export const SourceEditor: React.FC = () => {
     });
     setSelectedRows([]);
   }, [selectedRows, getValues, enqueueDelete]);
+
+  const onMarkAsAppliedSelection = useCallback(() => {
+    const ids: string[] = [];
+    selectedRows.forEach(index => {
+      const source = getValues(`sources.${index}`);
+      if (source.id && (!source.in_graph || source.status === SourceStatus.REMOVED)) {
+        ids.push(source.id);
+      }
+    });
+    enqueueMarkAsApplied(ids);
+    setSelectedRows([]);
+  }, [selectedRows, getValues, enqueueMarkAsApplied]);
 
   const onReindexSelection = useCallback(() => {
     const sources = selectedRows
@@ -466,14 +509,18 @@ export const SourceEditor: React.FC = () => {
 
   const hasFailedSource = useMemo(() => fields.some(s => s.status !== SourceStatus.INDEXED), [fields]);
 
-  const generateParams = useBuilderSelector(BuilderSelectors.selectGenerateParams);
+  const isFooterVisible = useMemo(() => {
+    return generationStatus === GenerationStatus.NOT_STARTED || selectedRows.length > 0;
+  }, [generationStatus, selectedRows.length]);
 
   return (
-    <div className="mx-3 mb-3 flex size-full flex-col gap-px rounded bg-layer-3 pt-1 text-primary shadow-mindmap">
+    <div className="mx-3 mb-3 flex size-full flex-col gap-px rounded bg-layer-3 text-primary shadow-mindmap">
       <div className="flex size-full flex-col">
-        <div className="max-h-[calc(100vh-158px)] grow overflow-y-auto">
+        <div
+          className={classNames('grow overflow-y-auto', isFooterVisible ? 'max-h-[calc(100vh-158px)]' : 'max-h-full')}
+        >
           <div className="flex h-full">
-            <div ref={listRef} className="grow overflow-y-auto">
+            <div ref={listRef} className="grow overflow-y-auto pt-1">
               <SourcesTable
                 editableIndex={editableIndex}
                 editMode={editMode}
@@ -499,6 +546,8 @@ export const SourceEditor: React.FC = () => {
                 handleRefreshLink={handleRefreshLink}
                 isSimpleGenerationModeAvailable={isSimpleGenerationModeAvailable}
                 onPasteList={handlePasteLinks}
+                onMarkAsApplied={handleMarkAsApplied}
+                isLiteMode={generationType === GenerationType.Simple}
               />
               <input
                 name="upload"
@@ -524,26 +573,22 @@ export const SourceEditor: React.FC = () => {
           </div>
         </div>
 
-        <SourceEditorFooter
-          generationStatus={generationStatus}
-          isValid={isValid}
-          fieldsLength={fields.length}
-          hasFailedSource={hasFailedSource}
-          selectedRowsLength={selectedRows.length}
-          onGenerate={handleGenerateGraph}
-          onApplySelection={handleApplySelectionToGraph}
-          onDeleteSelection={onDeleteSelection}
-          onReindexSelection={onReindexSelection}
-          showSimpleModeSwitcher={isSimpleGenerationModeAvailable && generationType !== GenerationType.Simple}
-          onToggleSimpleMode={(checked: boolean) => {
-            dispatch(
-              BuilderActions.updateGenerateParams({
-                ...generateParams,
-                type: checked ? GenerationType.Simple : GenerationType.Universal,
-              }),
-            );
-          }}
-        />
+        {isFooterVisible && (
+          <SourceEditorFooter
+            generationStatus={generationStatus}
+            isValid={isValid}
+            fieldsLength={fields.length}
+            hasFailedSource={hasFailedSource}
+            selectedRowsLength={selectedRows.length}
+            totalActiveSourcesTokens={totalActiveSourcesTokens}
+            isLiteMode={generationType === GenerationType.Simple}
+            onGenerate={handleGenerateGraph}
+            onApplySelection={handleApplySelectionToGraph}
+            onDeleteSelection={onDeleteSelection}
+            onReindexSelection={onReindexSelection}
+            onMarkAsAppliedSelection={onMarkAsAppliedSelection}
+          />
+        )}
 
         {sourceIdInVersionsModal !== undefined && (
           <VersionsHistoryModal

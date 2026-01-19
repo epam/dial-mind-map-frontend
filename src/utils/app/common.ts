@@ -40,3 +40,45 @@ export const dispatchMouseLeaveEvent = (eventTarget: EventTarget | null) => {
 
   eventTarget?.dispatchEvent(mouseLeaveEvent);
 };
+
+/**
+ * Waits for a DOM element with the given ID to appear.
+ * Checks once per animation frame until found or timeout.
+ *
+ * @param id - Element ID to wait for. If missing, resolves to `null`.
+ * @param timeoutMs - Max wait time in ms (default: 2000).
+ * @returns Promise resolving to the element or `null` if not found.
+ */
+export const waitForElement = (id: string | undefined, timeoutMs = 2000): Promise<HTMLElement | null> => {
+  return new Promise(resolve => {
+    if (!id) {
+      resolve(null);
+      return;
+    }
+    const start = performance.now();
+    let rafId = 0;
+    let canceled = false;
+
+    const check = () => {
+      if (canceled) return;
+      const el = document.getElementById(id);
+      if (el) {
+        resolve(el);
+        return;
+      }
+      if (performance.now() - start >= timeoutMs) {
+        resolve(null);
+        return;
+      }
+      rafId = requestAnimationFrame(check);
+    };
+
+    rafId = requestAnimationFrame(check);
+
+    (resolve as any).cancel = () => {
+      canceled = true;
+      cancelAnimationFrame(rafId);
+      resolve(null);
+    };
+  });
+};

@@ -13,8 +13,9 @@ export async function fetchEntityFromDial<T>(slugs: string[], auth: AuthParams):
 
   let res: Response;
   try {
+    const headers = getApiHeaders({ authParams: auth, contentType: 'application/json' });
     res = await fetch(url, {
-      headers: getApiHeaders({ authParams: auth, contentType: 'application/json' }),
+      headers,
       method: 'GET',
     });
     logger.info({ status: res.status, statusText: res.statusText }, 'Received response from entity API.');
@@ -48,6 +49,10 @@ export const fetchApplication = async (
   try {
     const slugs = mindmapId.split('/').filter(el => el !== 'applications');
     const auth = await getAuthParamsFromServer();
+    if (auth.error) {
+      logger.error({ error: auth.error }, 'fetchApplication failed due to authentication error');
+      return { error: { status: 401, message: auth.error } };
+    }
 
     const app = await fetchEntityFromDial<Application>(slugs, auth);
     return { application: app };

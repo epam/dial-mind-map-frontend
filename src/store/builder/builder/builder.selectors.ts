@@ -42,5 +42,41 @@ export const selectIsMindmapImportInProgress = createSelector([rootSelector], st
 export const selectGenerateParams = createSelector([rootSelector], state => ({
   model: state.currentModelId ?? state.defaultSimpleModeModel,
   type: state.generationType,
-  prompt: state.prompt ?? state.defaultSimpleModePrompt,
+  prompt: state.prompt ?? undefined,
+  chatModel: state.chatModel ?? state.defaultChatModel,
+  chatPrompt: state.chatPrompt ?? undefined,
+  chatGuardrailsPrompt: state.chatGuardrailsPrompt ?? undefined,
+  chatGuardrailsEnabled: state.chatGuardrailsEnabled,
+  chatGuardrailsResponsePrompt: state.chatGuardrailsResponsePrompt ?? undefined,
 }));
+
+export const selectDefaultChatModel = createSelector([rootSelector], state => state.defaultChatModel);
+
+export const selectDefaultChatPrompt = createSelector([rootSelector], state => state.defaultChatPrompt);
+
+export const selectDefaultChatGuardrailsPrompt = createSelector(
+  [rootSelector],
+  state => state.defaultChatGuardrailsPrompt,
+);
+
+export const selectDefaultChatGuardrailsResponsePrompt = createSelector(
+  [rootSelector],
+  state => state.defaultChatGuardrailsResponsePrompt,
+);
+
+export const selectChatModelId = createSelector([rootSelector], state => state.chatModel);
+
+export const selectChatPrompt = createSelector([rootSelector], state => state.chatPrompt);
+
+export const selectChatGuardrailsEnabled = createSelector([rootSelector], state => state.chatGuardrailsEnabled);
+
+export const selectChatGuardrailsPrompt = createSelector([rootSelector], state => state.chatGuardrailsPrompt);
+
+export const selectChatGuardrailsResponsePrompt = createSelector(
+  [rootSelector],
+  state => state.chatGuardrailsResponsePrompt,
+);
+
+export const selectAvailableChatModels = createSelector([rootSelector], state => state.availableChatModels);
+
+export const selectAvailableSimpleModeModels = createSelector([rootSelector], state => state.availableSimpleModeModels);

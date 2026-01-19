@@ -96,6 +96,7 @@ export const EdgeStyleSection = () => {
         max={50}
         value={edgeBaseConfig?.width}
         placeholder={DefaultEdgeWidth.toString()}
+        defaultValue={DefaultEdgeWidth}
       />
     </Space>
   );

@@ -13,30 +13,12 @@ jest.mock('file-saver', () => ({
 jest.mock('@/store/builder/application/application.reducer');
 
 describe('exportAppearancesEpic', () => {
-  const folder = 'test-folder';
   const name = 'test-app';
 
   beforeEach(() => {
     jest.resetAllMocks();
-    (ApplicationSelectors.selectMindmapFolder as unknown as jest.Mock).mockReturnValue(folder);
     (ApplicationSelectors.selectApplicationName as unknown as jest.Mock).mockReturnValue(name);
     (ApplicationSelectors.selectApplicationDisplayName as unknown as jest.Mock).mockReturnValue('test-app');
-  });
-
-  it('emits nothing when no folder is set', done => {
-    (ApplicationSelectors.selectMindmapFolder as unknown as jest.Mock).mockReturnValue(undefined);
-    const actions: any[] = [];
-    const action$ = of(AppearanceActions.exportAppearances());
-    const state$ = { value: {} } as any;
-
-    const output$ = exportAppearancesEpic(action$, state$);
-    output$.subscribe({
-      next: action => actions.push(action),
-      complete: () => {
-        expect(actions).toEqual([]);
-        done();
-      },
-    });
   });
 
   it('calls saveAs and dispatches success on 200 response', async () => {

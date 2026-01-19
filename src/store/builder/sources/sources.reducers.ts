@@ -51,6 +51,7 @@ export const sourcesSlice = createSlice({
     recreateSourceVersion: (state, { payload }: PayloadAction<RecreateSourceVersion>) => state,
     updateSource: (state, { payload }: PayloadAction<Source>) => state,
     reindexSources: (state, { payload }: PayloadAction<Source[]>) => state,
+    markAsApplied: (state, { payload }: PayloadAction<{ ids: string[] }>) => state,
   },
 });
 

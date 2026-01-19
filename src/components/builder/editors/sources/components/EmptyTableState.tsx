@@ -1,10 +1,6 @@
 import { IconFileDescription } from '@tabler/icons-react';
 
 import { Space } from '@/components/common/Space/Space';
-import { ToggleSwitch } from '@/components/common/ToggleSwitch/ToggleSwitch';
-import { BuilderActions, BuilderSelectors } from '@/store/builder/builder/builder.reducers';
-import { useBuilderDispatch, useBuilderSelector } from '@/store/builder/hooks';
-import { GenerationType } from '@/types/generate';
 import { CreateSource } from '@/types/sources';
 
 import { SourceActions } from './SourceActions';
@@ -24,21 +20,7 @@ export const EmptyTableState: React.FC<Props> = ({
   handleAddSource,
   handleSelectFiles,
   editableIndex,
-  isSimpleGenerationModeAvailable = false,
 }) => {
-  const dispatch = useBuilderDispatch();
-  const generationType = useBuilderSelector(BuilderSelectors.selectGenerationType);
-  const currentParams = useBuilderSelector(BuilderSelectors.selectGenerateParams);
-
-  const onSetGenerationType = (checked: boolean) => {
-    dispatch(
-      BuilderActions.updateGenerateParams({
-        ...currentParams,
-        type: checked ? GenerationType.Simple : GenerationType.Universal,
-      }),
-    );
-  };
-
   return (
     <tr>
       <td colSpan={columnsCount}>
@@ -54,22 +36,6 @@ export const EmptyTableState: React.FC<Props> = ({
               handleAddSource={handleAddSource}
               handleSelectFiles={handleSelectFiles}
             />
-            {isSimpleGenerationModeAvailable && generationType !== GenerationType.Simple && (
-              <Space size="middle" className="px-5">
-                <label htmlFor="node-highlight" className="mb-1 flex min-w-20 items-center text-sm">
-                  Simple mode:
-                </label>
-
-                <ToggleSwitch
-                  isOn={false}
-                  switchOnText="ON"
-                  switchOFFText="OFF"
-                  handleSwitch={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    onSetGenerationType(e.target.checked);
-                  }}
-                />
-              </Space>
-            )}
           </Space>
         </div>
       </td>

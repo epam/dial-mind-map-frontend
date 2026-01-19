@@ -7,6 +7,7 @@ import { deleteSourceEpic } from './epics/deleteSource.epic';
 import { downloadSourceEpic } from './epics/downloadSource.epic';
 import { fetchSourcesEpic } from './epics/fetchSources.epic';
 import { initSourcesEpic } from './epics/initSources.epic';
+import { markAsAppliedEpic } from './epics/markAsApplied.epics';
 import { recreateSourceVersionEpic } from './epics/recreateSourceVersion.epic';
 import { reindexSourcesEpic } from './epics/reindexSources.epic';
 import { setActiveSourceVersionEpic } from './epics/setActiveSourceVersion.epic';
@@ -26,4 +27,5 @@ export const SourcesEpics = combineEpics(
   recreateSourceVersionEpic,
   updateSourceEpic,
   reindexSourcesEpic,
+  markAsAppliedEpic,
 );

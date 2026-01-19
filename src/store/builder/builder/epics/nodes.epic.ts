@@ -3,7 +3,6 @@ import cloneDeep from 'lodash-es/cloneDeep';
 import merge from 'lodash-es/merge';
 import { concat, concatMap, EMPTY, filter, map, mergeMap, of } from 'rxjs';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { Edge, Element, Node, PositionedElement } from '@/types/graph';
 import { HTTPMethod } from '@/types/http';
 import { BuilderRootEpic } from '@/types/store';
@@ -62,21 +61,15 @@ export const updateNodesPositionsEpic: BuilderRootEpic = (action$, state$) =>
         optimisticActions.push(HistoryActions.setIsUndo(true));
       }
 
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/graph`,
-        {
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/graph`,
+        options: {
           method: HTTPMethod.PATCH,
           body: JSON.stringify(body),
-          headers: { [MindmapUrlHeaderName]: mindmapFolder },
         },
         state$,
         optimisticActions,
-      );
+      });
     }),
   );
 
@@ -94,23 +87,17 @@ export const setNodeAsRootEpic: BuilderRootEpic = (action$, state$) =>
         GraphActions.setRootNodeId(payload),
       ];
 
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/graph`,
-        {
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/graph`,
+        options: {
           method: HTTPMethod.PATCH,
           body: JSON.stringify({
             root: payload,
           }),
-          headers: { [MindmapUrlHeaderName]: mindmapFolder },
         },
         state$,
         optimisticActions,
-      );
+      });
     }),
   );
 
@@ -144,21 +131,15 @@ export const updateNodeEpic: BuilderRootEpic = (action$, state$) =>
         GraphActions.updateElements([updatedNode]),
       ];
 
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/graph/nodes/${payload.id}`,
-        {
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/graph/nodes/${payload.id}`,
+        options: {
           method: HTTPMethod.PUT,
           body: JSON.stringify(updatedNode),
-          headers: { [MindmapUrlHeaderName]: mindmapFolder },
         },
         state$,
         optimisticActions,
-      );
+      });
     }),
   );
 
@@ -178,22 +159,16 @@ export const createNodeEpic: BuilderRootEpic = (action$, state$) =>
         UIActions.setIsNodeEditorOpen(true),
       ];
 
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/graph/nodes`,
-        {
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/graph/nodes`,
+        options: {
           method: HTTPMethod.POST,
           body: JSON.stringify(payload),
-          headers: { [MindmapUrlHeaderName]: mindmapFolder },
         },
         state$,
         optimisticActions,
-        [BuilderActions.createNodeSuccess()],
-      );
+        successActions: [BuilderActions.createNodeSuccess()],
+      });
     }),
   );
 
@@ -232,16 +207,11 @@ export const deleteNodeEpic: BuilderRootEpic = (action$, state$) =>
         GraphActions.deleteElements([payload.nodeId, ...payload.edgesIds]),
       ];
 
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/graph/nodes/${payload.nodeId}`,
-        { method: HTTPMethod.DELETE, headers: { [MindmapUrlHeaderName]: mindmapFolder } },
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/graph/nodes/${payload.nodeId}`,
+        options: { method: HTTPMethod.DELETE },
         state$,
         optimisticActions,
-      );
+      });
     }),
   );

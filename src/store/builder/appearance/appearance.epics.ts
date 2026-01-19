@@ -17,18 +17,19 @@ import {
   throwError,
 } from 'rxjs';
 
-import { EtagHeaderName, MindmapUrlHeaderName } from '@/constants/http';
+import { EtagHeaderName } from '@/constants/http';
 import { ThemeConfig } from '@/types/customization';
 import { HTTPMethod } from '@/types/http';
 import { BuilderRootEpic } from '@/types/store';
 import { extractPrefixStorageFontFileName } from '@/utils/app/file';
+import { isAbortError, isNetworkError } from '@/utils/common/error';
 
 import { ApplicationSelectors } from '../application/application.reducer';
 import { BuilderActions } from '../builder/builder.reducers';
 import { HistoryActions } from '../history/history.reducers';
 import { UIActions, UISelectors } from '../ui/ui.reducers';
 import { UploadResourceStatusActions } from '../uploadResourceStatus/uploadResourceStatus.reducers';
-import { handleRequestNew } from '../utils/handleRequest';
+import { handleRequest } from '../utils/handleRequest';
 import { AppearanceActions, AppearanceSelectors } from './appearance.reducers';
 import { exportAppearancesEpic } from './epics/exportAppearances.epic';
 import { fetchThemeConfigEpic } from './epics/fetchThemeConfig.epic';
@@ -39,13 +40,11 @@ export const resetThemeConfigEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
     filter(AppearanceActions.resetThemeConfig.match),
     concatMap(({ payload }) => {
-      const folder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!folder) return EMPTY;
       const appName = ApplicationSelectors.selectApplicationName(state$.value);
 
-      return handleRequestNew({
+      return handleRequest({
         url: `/api/mindmaps/${encodeURIComponent(appName)}/appearances/themes/${payload.theme}/reset`,
-        options: { method: HTTPMethod.POST, headers: { [MindmapUrlHeaderName]: folder } },
+        options: { method: HTTPMethod.POST },
         state$,
         responseProcessor: resp =>
           from(
@@ -75,22 +74,20 @@ export const initThemeEpic: BuilderRootEpic = action$ =>
     }),
   );
 
-const subscribeOnThemeEpic: BuilderRootEpic = (action$, state$) => {
-  return action$.pipe(
+const subscribeOnThemeEpic: BuilderRootEpic = (action$, state$) =>
+  action$.pipe(
     filter(AppearanceActions.subscribeOnTheme.match),
     concatMap(() => {
-      const folder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!folder) return EMPTY;
       const appName = ApplicationSelectors.selectApplicationName(state$.value);
-
       const theme = UISelectors.selectTheme(state$.value);
+      const controller = new AbortController();
 
       return from(
         fetch(`/api/mindmaps/${encodeURIComponent(appName)}/appearances/themes/${theme}/events`, {
-          method: 'POST',
+          method: 'GET',
+          signal: controller.signal,
           headers: {
             'Content-Type': 'application/json',
-            [MindmapUrlHeaderName]: folder,
           },
         }),
       ).pipe(
@@ -115,23 +112,26 @@ const subscribeOnThemeEpic: BuilderRootEpic = (action$, state$) => {
 
                   for (const line of lines) {
                     if (line.startsWith('data:')) {
-                      const jsonData = line.slice(5).trim();
-                      observer.next(jsonData);
+                      observer.next(line.slice(5).trim());
                     }
                   }
 
                   buffer = lines[lines.length - 1];
                 }
                 observer.complete();
-              } catch (error) {
-                console.error(error);
+              } catch (error: any) {
+                if (isAbortError(error) || isNetworkError(error)) {
+                  observer.complete();
+                  return;
+                }
+                console.error('SSE read error:', error);
                 observer.error(error);
               }
             };
 
             read();
             return () => {
-              reader.cancel();
+              controller.abort();
             };
           });
 
@@ -155,6 +155,9 @@ const subscribeOnThemeEpic: BuilderRootEpic = (action$, state$) => {
               return of(AppearanceActions.setThemeConfig(newThemeConfig));
             }),
             catchError(error => {
+              if (isAbortError(error) || isNetworkError(error)) {
+                return EMPTY;
+              }
               console.warn('SSE error:', error);
               return EMPTY;
             }),
@@ -167,14 +170,11 @@ const subscribeOnThemeEpic: BuilderRootEpic = (action$, state$) => {
       );
     }),
   );
-};
 
 export const uploadResourceEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
     filter(AppearanceActions.uploadResource.match),
     concatMap(({ payload }) => {
-      const folder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!folder) return EMPTY;
       const appName = ApplicationSelectors.selectApplicationName(state$.value);
       const theme = UISelectors.selectTheme(state$.value);
 
@@ -196,12 +196,11 @@ export const uploadResourceEpic: BuilderRootEpic = (action$, state$) =>
         }),
       ];
 
-      return handleRequestNew({
+      return handleRequest({
         url: `/api/mindmaps/${encodeURIComponent(appName)}/appearances/themes/${theme}/storage/${encodeURIComponent(payload.fileName)}`,
         options: {
           method: HTTPMethod.POST,
           body: formData,
-          headers: { [MindmapUrlHeaderName]: folder },
         },
         state$,
         skipContentType: true,
@@ -216,8 +215,6 @@ export const uploadFontEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
     filter(AppearanceActions.uploadFont.match),
     concatMap(({ payload }) => {
-      const folder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!folder) return EMPTY;
       const appName = ApplicationSelectors.selectApplicationName(state$.value);
       const theme = UISelectors.selectTheme(state$.value);
 
@@ -245,12 +242,11 @@ export const uploadFontEpic: BuilderRootEpic = (action$, state$) =>
           }),
         );
 
-      return handleRequestNew({
+      return handleRequest({
         url: `/api/mindmaps/${encodeURIComponent(appName)}/appearances/themes/${theme}/storage/fonts/${encodeURIComponent(payload.fileName)}`,
         options: {
           method: HTTPMethod.POST,
           body: formData,
-          headers: { [MindmapUrlHeaderName]: folder },
         },
         state$,
         skipContentType: true,

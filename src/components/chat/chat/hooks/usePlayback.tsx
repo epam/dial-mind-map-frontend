@@ -18,7 +18,7 @@ export const usePlayback = () => {
   );
 
   const onNextPlaybackStep = useCallback(() => {
-    dispatch(PlaybackActions.playbackNextStep());
+    dispatch(PlaybackActions.playbackNextStep({}));
   }, [dispatch]);
 
   const onPreviousPlaybackStep = useCallback(() => {

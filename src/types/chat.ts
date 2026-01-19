@@ -15,6 +15,7 @@ export interface Attachment {
 export enum AttachmentTitle {
   'Used references' = 'Used references',
   'Generated graph node' = 'Generated graph node',
+  'Founded graph node' = 'Founded graph node',
 }
 
 export enum AttachmentType {
@@ -37,6 +38,7 @@ export interface Message {
     attachments?: Attachment[];
     state?: object;
   };
+  like?: LikeState;
   errorMessage?: string;
   model?: ConversationEntityModel;
   settings?: MessageSettings;
@@ -67,6 +69,18 @@ export interface ChatBody extends CaptchaToken {
   custom_fields?: CustomFields;
 }
 
+export interface RateBody {
+  responseId: string;
+  value: boolean;
+  comment?: string;
+}
+
+export enum LikeState {
+  Disliked = -1,
+  Liked = 1,
+  NoState = 0,
+}
+
 export interface Playback {
   isPlayback?: boolean;
   messagesStack: Message[];
@@ -95,6 +109,7 @@ export enum PlaybackActionType {
   ChangeFocusNode = 'changeFocusNode',
   FillInput = 'fillInput',
   ChangeDepth = 'changeDepth',
+  AIGenerateMessage = 'AIGenerateMessage',
 }
 
 export interface PlaybackAction {
@@ -104,6 +119,10 @@ export interface PlaybackAction {
     focusNodeId: string;
     visitedNodes: Record<string, string>;
     depth: 1 | 2;
+  };
+  chat?: {
+    userMessage?: string;
+    previousMessage?: Message;
   };
 }
 

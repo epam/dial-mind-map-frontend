@@ -1,0 +1,200 @@
+{
+  "applicationTypeSchemas": [
+    {
+      "$schema": "https://dial.epam.com/application_type_schemas/schema#",
+      "$id": "https://mydial.epam.com/custom_application_schemas/mindmapapps",
+      "dial:applicationTypeEditorUrl": "http://localhost:3002/sources",
+      "dial:applicationTypeViewerUrl": "http://localhost:3002/chat",
+      "dial:applicationTypeDisplayName": "Mind map",
+      "dial:applicationTypeIconUrl": "Mind-Map.svg",
+      "dial:applicationTypeCompletionEndpoint": "http://mind-map-backend:5000/openai/deployments/mindmap/chat/completions",
+      "$defs": {},
+      "dial:applicationTypeRoutes": {
+        "restricted_gets": {
+          "dial:paths": [
+            "/v1/appearances/export",
+            "/v1/history",
+            "/v1/sources",
+            "/v1/sources/export"
+          ],
+          "dial:methods": [
+            "GET"
+          ],
+          "dial:permissions": ["WRITE"],
+          "dial:rewritePath": true,
+          "dial:order": 1,
+          "dial:upstreams": [
+            {
+              "dial:endpoint": "http://mind-map-backend:5000"
+            }
+          ]
+        },
+        "read": {
+          "dial:paths": [
+            "/v1/.*"
+          ],
+          "dial:methods": [
+            "GET"
+          ],
+          "dial:permissions": ["READ"],
+          "dial:rewritePath": true,
+          "dial:order": 2,
+          "dial:upstreams": [
+            {
+              "dial:endpoint": "http://mind-map-backend:5000"
+            }
+          ]
+        },
+        "write": {
+          "dial:paths": [
+            "/v1/.*"
+          ],
+          "dial:methods": [
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH"
+          ],
+          "dial:order": 3,
+          "dial:rewritePath": true,
+          "dial:permissions": ["WRITE"],
+          "dial:upstreams": [
+            {
+              "dial:endpoint": "http://mind-map-backend:5000"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "mindmap_folder": {
+          "type": "string",
+          "format": "dial-file-encoded",
+          "dial:file": true,
+          "dial:meta": {
+            "dial:propertyKind": "client",
+            "dial:propertyOrder": 1
+          }
+        }
+      },
+      "required": []
+    }
+  ],
+  "models": {
+    "gpt-4.1-2025-04-14": {
+      "type": "chat",
+      "endpoint": "http://adapter-openai:5000/openai/deployments/gpt-4.1-2025-04-14/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "",
+          "key": ""
+        }
+      ],
+      "displayName": "GPT-4.1",
+      "displayVersion": "2025-04-14",
+      "description": "GPT-4.1 is a flagship model for complex tasks. It is well suited for problem solving across domains.",
+      "descriptionKeywords": [
+        "Text Generation",
+        "Image Recognition",
+        "Continue Supported"
+      ],
+      "iconUrl": "gpt4.svg",
+      "inputAttachmentTypes": [
+        "*/*"
+      ],
+      "tokenizerModel": "gpt-4-0314",
+      "limits": {
+        "maxTotalTokens": 1047576
+      },
+      "pricing": {
+        "unit": "token",
+        "prompt": "0.000002",
+        "completion": "0.000008"
+      },
+      "features": {
+        "systemPromptSupported": true
+      }
+    },
+    "gpt-4.1-mini-2025-04-14": {
+      "type": "chat",
+      "endpoint": "http://adapter-openai:5000/openai/deployments/gpt-4.1-mini-2025-04-14/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "",
+          "key": ""
+        }
+      ],
+      "displayName": "GPT-4.1-mini",
+      "displayVersion": "2025-04-14",
+      "description": "The gpt-4.1 series is the latest iteration of the gpt-4o model family. This iteration of models is specifically targeted for better coding and instruction following, making it better at handling complex technical and coding problems.",
+      "descriptionKeywords": [
+        "Text Generation",
+        "Image Recognition",
+        "Continue Supported"
+      ],
+      "iconUrl": "gpt4.svg",
+      "inputAttachmentTypes": [
+        "*/*"
+      ],
+      "tokenizerModel": "gpt-4-0314",
+      "limits": {
+        "maxTotalTokens": 128000
+      },
+      "pricing": {
+        "unit": "token",
+        "prompt": "0.0000004",
+        "completion": "0.0000016"
+      },
+      "features": {
+        "systemPromptSupported": true
+      }
+    },
+    "gpt-5-2025-08-07": {
+      "type": "chat",
+      "endpoint": "http://adapter-openai:5000/openai/deployments/gpt-5-2025-08-07/chat/completions",
+      "upstreams": [
+        {
+          "endpoint": "",
+          "key": ""
+        }
+      ],
+      "displayName": "GPT-5",
+      "displayVersion": "2025-08-07",
+      "description": "GPT-5, a full reasoning model provides deep, richer reasoning for analytics and complex tasks, like code generation, with a 272k token context.",
+      "descriptionKeywords": [
+        "Text Generation",
+        "Image Recognition",
+        "Continue Supported"
+      ],
+      "iconUrl": "gpt4.svg",
+      "inputAttachmentTypes": [
+        "image/*"
+      ],
+      "limits": {
+        "maxTotalTokens": 272000
+      },
+      "pricing": {
+        "unit": "token",
+        "prompt": "0.00000125",
+        "completion": "0.00001"
+      },
+      "features": {
+        "systemPromptSupported": true
+      }
+    }
+  },
+  "keys": {
+    "dial_api_key": {
+      "project": "TestProject1",
+      "role": "default"
+    }
+  },
+  "roles": {
+    "default": {
+      "limits": {
+        "gpt-4.1-2025-04-14": {},
+        "gpt-4.1-mini-2025-04-14": {},
+        "gpt-5-2025-08-07": {}
+      }
+    }
+  }
+}

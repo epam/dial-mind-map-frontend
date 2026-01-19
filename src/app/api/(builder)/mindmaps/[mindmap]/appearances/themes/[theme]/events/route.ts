@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { defaultConfig } from '@/constants/appearances/defaultConfig';
 import { errorsMessages } from '@/constants/errors';
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
 import { HTTPMethod } from '@/types/http';
+import { decodeAppPathSafely } from '@/utils/app/application';
 import { withAuth } from '@/utils/auth/withAuth';
+import { isAbortError } from '@/utils/common/error';
 import { getApiHeaders } from '@/utils/server/get-headers';
 import { logger } from '@/utils/server/logger';
 import { withLogger } from '@/utils/server/withLogger';
@@ -13,10 +14,10 @@ import { withLogger } from '@/utils/server/withLogger';
 const subscribeHandler = async (
   req: NextRequest,
   authParams: AuthParams,
-  { params }: { params: { mindmap: string; theme: string } },
+  { params }: { params: Promise<{ mindmap: string; theme: string }> },
 ) => {
-  const mindmapId = decodeURIComponent(params.mindmap);
-  const themeId = params.theme;
+  const { mindmap, theme: themeId } = await params;
+  const mindmapId = decodeAppPathSafely(mindmap);
   let isStreamClosed = false;
 
   try {
@@ -27,13 +28,12 @@ const subscribeHandler = async (
     });
 
     const response = await fetch(
-      `${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/appearances/themes/${themeId}/events`,
+      `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/appearances/themes/${themeId}/events`,
       {
-        method: HTTPMethod.POST,
+        method: HTTPMethod.GET,
         headers: getApiHeaders({
           authParams: authParams,
           contentType: 'application/json',
-          [MindmapUrlHeaderName]: req.headers.get(MindmapUrlHeaderName) ?? undefined,
         }),
         signal: controller.signal,
       },
@@ -89,7 +89,7 @@ const subscribeHandler = async (
           }
         }
       } catch (error: any) {
-        if (error.name !== 'AbortError') {
+        if (!isAbortError(error)) {
           logger.error({ error: error }, 'Error receiving theme subscription event');
           await writer.write(
             encoder.encode(
@@ -112,7 +112,7 @@ const subscribeHandler = async (
       try {
         await reader.cancel();
       } catch (error: any) {
-        if (error.name !== 'AbortError') {
+        if (!isAbortError(error)) {
           logger.error({ error: error }, 'Error cancelling theme subscription reader');
         }
       }
@@ -121,7 +121,7 @@ const subscribeHandler = async (
         try {
           await writer.close();
         } catch (error: any) {
-          if (error.name !== 'AbortError') {
+          if (!isAbortError(error)) {
             logger.error({ error: error }, 'Error closing theme subscription writer');
           }
         }
@@ -138,7 +138,7 @@ const subscribeHandler = async (
       }),
     });
   } catch (error: any) {
-    if (error.name !== 'AbortError') {
+    if (!isAbortError(error)) {
       logger.error(
         { err: error },
         `Internal error happened during receiving updates for the theme ${themeId} of mindmap ${mindmapId}`,
@@ -148,4 +148,4 @@ const subscribeHandler = async (
   }
 };
 
-export const POST = withLogger(withAuth(subscribeHandler));
+export const GET = withLogger(withAuth(subscribeHandler));

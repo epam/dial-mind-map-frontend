@@ -10,13 +10,17 @@ import { nextauthOptions } from '../auth/auth-callbacks';
 
 export async function getAuthParamsFromServer(): Promise<AuthParams> {
   const session = await getServerSession(nextauthOptions);
-  const allowApiKey = !!process.env.ALLOW_API_KEY_AUTH;
+  const allowApiKey = !!process.env.DIAL_API_KEY;
 
   if (!validateServerSession(session) && !allowApiKey) {
-    throw new Error('Unauthorized: invalid session');
+    return {
+      token: null,
+      apiKey: undefined,
+      error: typeof session?.error === 'string' ? session.error : 'Unauthorized: missing session',
+    };
   }
 
-  const cookieHeader = cookies().toString();
+  const cookieHeader = (await cookies()).toString();
   let token = null;
 
   try {
@@ -39,5 +43,5 @@ export async function getAuthParamsFromServer(): Promise<AuthParams> {
     throw new Error('API key auth enabled but DIAL_API_KEY is not set');
   }
 
-  return { token, apiKey: process.env.DIAL_API_KEY };
+  return { token: allowApiKey ? null : token, apiKey: process.env.DIAL_API_KEY };
 }

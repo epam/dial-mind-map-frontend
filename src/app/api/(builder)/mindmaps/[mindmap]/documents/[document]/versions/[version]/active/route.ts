@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import fetch from 'node-fetch';
 
 import { errorsMessages } from '@/constants/errors';
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
+import { decodeAppPathSafely } from '@/utils/app/application';
 import { withAuth } from '@/utils/auth/withAuth';
 import { getApiHeaders } from '@/utils/server/get-headers';
 import { logger } from '@/utils/server/logger';
@@ -12,19 +12,18 @@ import { withLogger } from '@/utils/server/withLogger';
 const activeHandler = async (
   req: NextRequest,
   authParams: AuthParams,
-  context: { params: { mindmap: string; document: string; version: string } },
+  context: { params: Promise<{ mindmap: string; document: string; version: string }> },
 ) => {
-  const { document, version, mindmap: encodedMindmapId } = context.params;
-  const mindmapId = decodeURIComponent(encodedMindmapId);
+  const { document, version, mindmap: encodedMindmapId } = await context.params;
+  const mindmapId = decodeAppPathSafely(encodedMindmapId);
 
   try {
     const response = await fetch(
-      `${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/sources/${document}/versions/${version}/active`,
+      `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/sources/${document}/versions/${version}/active`,
       {
         method: 'POST',
         headers: getApiHeaders({
           authParams: authParams,
-          [MindmapUrlHeaderName]: req.headers.get(MindmapUrlHeaderName) ?? undefined,
         }),
       },
     );

@@ -1,17 +1,18 @@
 'use client';
-
 import classNames from 'classnames';
 import cytoscape, { Core, CoseLayoutOptions, EventObject, NodeSingular } from 'cytoscape';
 import fcose from 'cytoscape-fcose';
 import cloneDeep from 'lodash-es/cloneDeep';
+import debounce from 'lodash-es/debounce';
 import isEqual from 'lodash-es/isEqual';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ApplicationSelectors } from '@/store/chat/application/application.reducer';
 import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
+import { MindmapActions } from '@/store/chat/mindmap/mindmap.reducers';
 import { PlaybackSelectors } from '@/store/chat/playback/playback.selectors';
 import { ChatUIActions, ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
-import { GraphConfig, GraphImgResourceKey, GraphNodeType } from '@/types/customization';
+import { GraphConfig, GraphImgResourceKey, GraphLayoutType, GraphNodeType } from '@/types/customization';
 import { Element, GraphElement, Node, SystemNodeDataKeys } from '@/types/graph';
 
 import { FitGraph } from '../FitGraph';
@@ -19,6 +20,7 @@ import { LevelSwitcher } from '../LevelSwitcher';
 import { useDebouncedGraphUpdate } from './hooks/useDebouncedGraphUpdate';
 import { useThrottledResizeGraph } from './hooks/useThrottledResizeGraph';
 import {
+  AnimationDurationMs,
   FitDurationMs,
   getCytoscapeStyles,
   getSecondLayoutOptions,
@@ -28,8 +30,10 @@ import {
 } from './options';
 import { adjustMessages } from './utils/adjustMessages';
 import { filterInvalidEdges } from './utils/graph/filterInvalidEdges';
+import { applyClusteredAroundRoot, ClusteredLayoutConfig } from './utils/graph/layout/';
 import { markParents } from './utils/graph/markParents';
 import { sanitizeElements } from './utils/sanitizeElements';
+import { setContainerVisibility } from './utils/setContainerVisibility';
 import { adjustElementsStyles, adjustNeonedNodeStyles } from './utils/styles/adjustElementsStyles';
 import { getHoverEffectStyles } from './utils/styles/getHoverEffectStyles';
 
@@ -47,9 +51,14 @@ interface Props {
   robotStorageIcon?: string;
   arrowBackStorageIcon?: string;
   onFocusNodeChange: (node: Node) => void;
+  isProdEnv: boolean;
 }
 
-const GraphComponent = ({
+/**
+ * InnerGraph: all heavy logic lives here.
+ * Wrapper below will force a full remount when graphConfig.layout changes.
+ */
+const InnerGraph = ({
   elements,
   focusNodeId,
   visitedNodes,
@@ -61,7 +70,10 @@ const GraphComponent = ({
   fontFamily,
   robotStorageIcon,
   arrowBackStorageIcon,
+  isProdEnv,
 }: Props) => {
+  cytoscape.warnings(!isProdEnv);
+
   const cyRef = useRef<HTMLDivElement>(null);
 
   const dispatch = useChatDispatch();
@@ -75,30 +87,28 @@ const GraphComponent = ({
   );
 
   const additionalLayoutApplied = useRef(false);
+  const firstPaintDoneRef = useRef(false); // Show container only after the very first full layout+fit
   const [isInitialization, setIsInitialization] = useState(true);
   const [cy, setCy] = useState<Core | null>(null);
   const neonStartedRef = useRef(false);
   const hoveredNodeFontSizesRef = useRef<Map<string, number>>(new Map<string, number>());
+  const clusteredFirstRunRef = useRef(false);
 
-  const mindmapFolder = useChatSelector(ApplicationSelectors.selectMindmapFolder);
   const mindmapAppName = useChatSelector(ApplicationSelectors.selectAppName);
   const theme = useChatSelector(ChatUISelectors.selectThemeName);
   const deviceType = useChatSelector(ChatUISelectors.selectDeviceType);
+  const isDesktop = deviceType === DeviceType.Desktop;
 
   const isPlayback = useChatSelector(PlaybackSelectors.selectIsPlayback);
 
+  const debouncedSetIsFitGraphAvailable = debounce(isFitGraphAvailable => {
+    dispatch(ChatUIActions.setIsFitGraphAvailable(isFitGraphAvailable));
+  }, 300);
+
   const cytoscapeStyles: cytoscape.StylesheetStyle[] = useMemo(
     () =>
-      getCytoscapeStyles(
-        mindmapFolder ?? '',
-        mindmapAppName ?? '',
-        theme,
-        graphConfig,
-        fontFamily,
-        robotStorageIcon,
-        arrowBackStorageIcon,
-      ),
-    [mindmapFolder, mindmapAppName, graphConfig, fontFamily, robotStorageIcon, arrowBackStorageIcon, theme],
+      getCytoscapeStyles(mindmapAppName ?? '', theme, graphConfig, fontFamily, robotStorageIcon, arrowBackStorageIcon),
+    [mindmapAppName, graphConfig, fontFamily, robotStorageIcon, arrowBackStorageIcon, theme],
   );
 
   const secondLayoutOptions = useMemo(
@@ -128,6 +138,11 @@ const GraphComponent = ({
       subgraphElements = markParents(subgraphElements, focusNodeId);
       subgraphElements = sanitizeElements(subgraphElements, graphConfig.useNodeIconAsBgImage);
 
+      const initOptions = { ...InitLayoutOptions };
+      if (graphConfig.layout === GraphLayoutType.EllipticRing) {
+        initOptions.animationDuration = 200;
+      }
+
       const cy = cytoscape({
         container: cyRef.current,
         elements: subgraphElements,
@@ -135,9 +150,15 @@ const GraphComponent = ({
         wheelSensitivity: 0.4,
         layout: {
           randomize: true,
-          ...InitLayoutOptions,
+          ...initOptions,
         } as CoseLayoutOptions,
       });
+
+      clusteredFirstRunRef.current = false;
+
+      if (graphConfig.layout === GraphLayoutType.EllipticRing) {
+        setContainerVisibility(cy, false);
+      }
 
       cy.on('tap', 'node', event => {
         const node = event.target as NodeSingular;
@@ -159,10 +180,6 @@ const GraphComponent = ({
           container.style.cursor = 'pointer';
         }
 
-        if (node.data(SystemNodeDataKeys.Neon)) {
-          return;
-        }
-
         const styles = getHoverEffectStyles(node, graphConfig, 'mouseover');
 
         node.animate({ style: styles }, { duration: HoverDurationMs, queue: false });
@@ -176,16 +193,17 @@ const GraphComponent = ({
           container.style.cursor = 'default';
         }
 
-        if (node.data(SystemNodeDataKeys.Neon)) {
-          return;
-        }
-
         const styles = getHoverEffectStyles(node, graphConfig, 'mouseout');
 
         node.animate({ style: styles }, { duration: HoverDurationMs, queue: false });
       });
 
       cy.on('layoutstart', () => {
+        dispatch(MindmapActions.setRelayoutInProgress(true));
+        // Keep it invisible for the very first two-phase layout
+        if (!firstPaintDoneRef.current && graphConfig.layout === GraphLayoutType.EllipticRing) {
+          setContainerVisibility(cy, false);
+        }
         cy.minZoom(0);
         cy.nodes().forEach(node => {
           node.addClass('notap');
@@ -216,7 +234,21 @@ const GraphComponent = ({
             cy.getElementById(parentId).remove();
           });
 
-          cy.layout(secondLayoutOptions).run();
+          if (graphConfig.layout === GraphLayoutType.EllipticRing) {
+            const animate = clusteredFirstRunRef.current ? true : false;
+            const options: Partial<ClusteredLayoutConfig> = { ANIMATE: animate };
+            if (animate) {
+              options.LAYOUT_ANIMATE_MS = 500;
+            }
+            applyClusteredAroundRoot(cy, options, !animate);
+            clusteredFirstRunRef.current = true;
+            if (graphConfig.layout === GraphLayoutType.EllipticRing) {
+              // Use RAF to ensure renderer finalized the fit before showing
+              requestAnimationFrame(() => setContainerVisibility(cy, true));
+            }
+          } else {
+            cy.layout(secondLayoutOptions).run();
+          }
         } else {
           additionalLayoutApplied.current = false;
           cy.animate({
@@ -252,6 +284,16 @@ const GraphComponent = ({
               const minZoom = Math.min(zoomX, zoomY);
 
               cy.maxZoom(minZoom / 2);
+
+              // Reveal instantly (no animation) after the very first full layout+fit
+              if (!firstPaintDoneRef.current) {
+                if (graphConfig.layout === GraphLayoutType.EllipticRing) {
+                  // Use RAF to ensure renderer finalized the fit before showing
+                  requestAnimationFrame(() => setContainerVisibility(cy, true));
+                }
+                firstPaintDoneRef.current = true;
+              }
+              dispatch(MindmapActions.setRelayoutInProgress(false));
             },
           });
 
@@ -260,7 +302,7 @@ const GraphComponent = ({
             const bb = cy.elements().boundingBox();
             const isInside = bb.x1 >= extent.x1 && bb.y1 >= extent.y1 && bb.x2 <= extent.x2 && bb.y2 <= extent.y2;
 
-            dispatch(ChatUIActions.setIsFitGraphAvailable(!isInside));
+            debouncedSetIsFitGraphAvailable(!isInside);
           });
         }
       });
@@ -284,7 +326,6 @@ const GraphComponent = ({
         focusNode,
         dispatch,
         mindmapAppName: mindmapAppName ?? '',
-        mindmapFolder,
         theme,
         nodeColorMap,
         previousNodeId,
@@ -298,7 +339,7 @@ const GraphComponent = ({
     }
   }, [isReady, isChatHidden, cytoscapeStyles, fontFamily, secondLayoutOptions]);
 
-  useThrottledResizeGraph(cy);
+  useThrottledResizeGraph(cy, AnimationDurationMs, graphConfig.layout);
 
   useDebouncedGraphUpdate({
     cy,
@@ -310,34 +351,44 @@ const GraphComponent = ({
     updateSignal,
     fontFamily,
     mindmapAppName: mindmapAppName ?? '',
-    mindmapFolder,
     theme,
     graphConfig: graphConfig,
   });
 
-  cy?.container()?.addEventListener('wheel', event => {
+  useEffect(() => {
     if (!cy) return;
+    const container = cy.container();
+    if (!container) return;
 
-    const isZoomingIn = event.deltaY < 0;
-    const isZoomingOut = event.deltaY > 0;
+    const onWheel = (event: WheelEvent) => {
+      if (!cy) return;
 
-    const zoom = +cy.zoom().toFixed(2);
-    const minZoom = +cy.minZoom().toFixed(2);
-    const maxZoom = +cy.maxZoom().toFixed(2);
+      const isZoomingIn = event.deltaY < 0;
+      const isZoomingOut = event.deltaY > 0;
 
-    if (isZoomingIn && zoom >= maxZoom) {
-      cy.userZoomingEnabled(false);
-      dispatch(ChatUIActions.setIsFitGraphAvailable(true));
-    } else if (isZoomingOut && zoom <= minZoom) {
-      cy.userZoomingEnabled(false);
-      dispatch(ChatUIActions.setIsFitGraphAvailable(false));
-    } else {
-      cy.userZoomingEnabled(true);
-      if (zoom > minZoom) {
-        dispatch(ChatUIActions.setIsFitGraphAvailable(true));
+      const zoom = +cy.zoom().toFixed(2);
+      const minZoom = +cy.minZoom().toFixed(2);
+      const maxZoom = +cy.maxZoom().toFixed(2);
+
+      if (isZoomingIn && zoom >= maxZoom) {
+        cy.userZoomingEnabled(false);
+        debouncedSetIsFitGraphAvailable(true);
+      } else if (isZoomingOut && zoom <= minZoom) {
+        cy.userZoomingEnabled(false);
+        debouncedSetIsFitGraphAvailable(false);
+      } else {
+        cy.userZoomingEnabled(true);
+        if (zoom > minZoom) {
+          debouncedSetIsFitGraphAvailable(true);
+        }
       }
-    }
-  });
+    };
+
+    container.addEventListener('wheel', onWheel);
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+    };
+  }, [cy, debouncedSetIsFitGraphAvailable]);
 
   const fitGraphClickHandler = useCallback(() => {
     if (!cy) return;
@@ -358,15 +409,11 @@ const GraphComponent = ({
   }, [cy, dispatch]);
 
   return (
-    <div className="relative size-full">
-      <div ref={cyRef} className="size-full" />
+    <div className="flex size-full flex-col">
+      <div ref={cyRef} className="min-h-0 flex-1 overflow-hidden" />
+
       {deviceType !== DeviceType.Mobile && (
-        <div
-          className={classNames([
-            'absolute flex gap-3 bottom-3 lg:gap-4 lg:bottom-4 xl:bottom-0',
-            isChatHidden && 'bottom-[130px]',
-          ])}
-        >
+        <div className={classNames('shrink-0 flex gap-3', !isDesktop && 'mb-3')}>
           <LevelSwitcher />
           <FitGraph onClick={fitGraphClickHandler} />
         </div>
@@ -391,4 +438,15 @@ const areEqual = (prevProps: Props, nextProps: Props) => {
   );
 };
 
-export default memo(GraphComponent, areEqual);
+// Memoized heavy inner component
+const MemoInnerGraph = memo(InnerGraph, areEqual);
+
+/**
+ * Wrapper that forces a FULL remount when graphConfig.layout changes.
+ * This guarantees a clean slate (refs/state/Cytoscape instance) between layouts.
+ */
+const GraphComponent = (props: Props) => {
+  return <MemoInnerGraph key={props.graphConfig.layout} {...props} />;
+};
+
+export default GraphComponent;

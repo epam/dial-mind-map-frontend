@@ -21,7 +21,7 @@ import { isDocsReference, isNodeReference } from '../components/utils/parseRefer
 const makeSettings = (
   onAfterChange: (i: number) => void,
   count: number,
-  containerRef?: React.RefObject<HTMLDivElement>,
+  containerRef?: React.RefObject<HTMLDivElement | null>,
 ): Settings => ({
   dots: false,
   arrows: false,
@@ -45,16 +45,13 @@ const makeSettings = (
 
 const getSlideContent = (
   reference: DocsReference | NodeReference,
-  mindmapFolder: string,
   isFullscreen?: boolean,
   availableHeight?: number | null,
 ) => {
   if (isDocsReference(reference)) {
     if (reference.doc_content_type === 'application/pdf' && isFullscreen) {
       return {
-        content: (
-          <PdfContent reference={reference} folderPath={mindmapFolder} initialPage={Number(reference.chunk_id) - 1} />
-        ),
+        content: <PdfContent reference={reference} initialPage={Number(reference.chunk_id) - 1} />,
         contentType: 'pdf',
       };
     }
@@ -63,7 +60,6 @@ const getSlideContent = (
           content: (
             <ImageContent
               reference={reference}
-              folderPath={mindmapFolder}
               isFullscreenReference={isFullscreen}
               availableHeight={availableHeight}
             />
@@ -84,7 +80,6 @@ const getSlideContent = (
 export const useReferenceSlider = ({
   setOpenTooltip,
   references,
-  mindmapFolder,
   isFullscreen = false,
   containerRef,
   initialSlideNumber = 0,
@@ -93,9 +88,8 @@ export const useReferenceSlider = ({
 }: {
   setOpenTooltip?: (state: boolean) => void;
   references: Array<DocsReference | NodeReference>;
-  mindmapFolder: string;
   isFullscreen?: boolean;
-  containerRef?: React.RefObject<HTMLDivElement>;
+  containerRef?: React.RefObject<HTMLDivElement | null>;
   initialSlideNumber?: number;
   referenceId?: string;
   availableHeight?: number | null;
@@ -173,10 +167,7 @@ export const useReferenceSlider = ({
           textColor={
             themeConfig?.graph.paletteSettings.branchesColors.at(0)?.textColor ?? colord('#046280').darken(0.5).toHex()
           }
-          borderColor={
-            themeConfig?.graph.paletteSettings.branchesColors.at(0)?.borderColor ??
-            colord('#046280').darken(0.5).toHex()
-          }
+          borderColor={themeConfig?.graph.paletteSettings.branchesColors.at(0)?.borderColor}
           type={themeConfig?.chat?.chatNode?.availableNodeType ?? ChatNodeType.Filled}
           closeTooltip={() => setOpenTooltip && setOpenTooltip(false)}
         />
@@ -195,7 +186,7 @@ export const useReferenceSlider = ({
     () =>
       references.map((reference, index) => {
         const key = isDocsReference(reference) ? reference.doc_name : reference.id;
-        const slide = getSlideContent(reference, mindmapFolder, isFullscreen, availableHeight);
+        const slide = getSlideContent(reference, isFullscreen, availableHeight);
         if (!slide) return null;
         const { content, contentType } = slide;
         return (
@@ -222,7 +213,7 @@ export const useReferenceSlider = ({
           </div>
         );
       }),
-    [references, mindmapFolder, isFullscreen, setOpenTooltip, dispatch, referenceId, availableHeight],
+    [references, isFullscreen, setOpenTooltip, dispatch, referenceId, availableHeight],
   );
 
   const prev = useCallback(() => {

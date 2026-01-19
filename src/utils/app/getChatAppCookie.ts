@@ -6,10 +6,10 @@ import { ChatAppCookie } from '@/types/http';
 
 import { logger } from '../server/logger';
 
-export function getChatAppCookie(): ChatAppCookie {
+export async function getChatAppCookie(): Promise<ChatAppCookie> {
   const defaultValue: ChatAppCookie = { id: '', theme: '' };
 
-  const cookieValue = cookies().get(ChatAppCookieName)?.value;
+  const cookieValue = (await cookies()).get(ChatAppCookieName)?.value;
   if (!cookieValue) return defaultValue;
 
   try {

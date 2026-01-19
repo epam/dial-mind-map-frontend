@@ -1,6 +1,5 @@
-import { concatMap, EMPTY, filter, from, map } from 'rxjs';
+import { concatMap, filter, from, map } from 'rxjs';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { HTTPMethod } from '@/types/http';
 import { Source } from '@/types/sources';
 import { BuilderRootEpic } from '@/types/store';
@@ -28,12 +27,7 @@ export const updateSourceEpic: BuilderRootEpic = (action$, state$) =>
         HistoryActions.setIsRedo(false),
       ];
 
-      const errorActions = [UIActions.showErrorToast('Failed to update source'), SourcesActions.setSources(sources)];
-
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
+      const failureActions = [UIActions.showErrorToast('Failed to update source'), SourcesActions.setSources(sources)];
 
       const responseProcessor = (resp: Response) =>
         from(resp.json()).pipe(
@@ -42,11 +36,10 @@ export const updateSourceEpic: BuilderRootEpic = (action$, state$) =>
           ),
         );
 
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/documents/${payload.id}`,
-        {
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/documents/${payload.id}`,
+        options: {
           method: HTTPMethod.PUT,
-          headers: { [MindmapUrlHeaderName]: mindmapFolder },
           body: JSON.stringify({
             url: payload.url,
             type: payload.type,
@@ -54,9 +47,8 @@ export const updateSourceEpic: BuilderRootEpic = (action$, state$) =>
         },
         state$,
         optimisticActions,
-        [],
-        errorActions,
+        failureActions,
         responseProcessor,
-      );
+      });
     }),
   );

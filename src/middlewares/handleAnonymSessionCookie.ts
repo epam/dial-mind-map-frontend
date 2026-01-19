@@ -1,42 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { AnonymSessionCookieName, AnonymSessionCSRFTokenHeaderName, ChatAppCookieName } from '@/constants/http';
+import { AnonymSessionCookieName, AnonymSessionCSRFTokenHeaderName } from '@/constants/http';
 import { AnonymUserSession } from '@/types/http';
 import { decryptWeb, encryptWeb } from '@/utils/app/crypt';
 import { getCsrfToken } from '@/utils/common/csrf';
 import { uuidv4 } from '@/utils/common/uuid';
 
 export async function handleAnonymSessionCookie(req: NextRequest, res: NextResponse) {
-  const cookie = req.cookies.get(ChatAppCookieName);
-
-  if (!process.env.ALLOW_API_KEY_AUTH) return;
+  if (!process.env.DIAL_API_KEY || !process.env.ANONYM_SESSION_SECRET_KEY) return;
 
   const anonymSessionSecretKey = process.env.ANONYM_SESSION_SECRET_KEY || '';
-  let csrfToken: string | undefined;
+  const existingCookie = req.cookies.get(AnonymSessionCookieName);
 
-  if (!cookie) {
-    const userId = uuidv4();
-    csrfToken = getCsrfToken();
+  let session: AnonymUserSession;
 
-    const encrypted = await encryptWeb(
-      JSON.stringify({
-        userId,
-        token: csrfToken,
-      } as AnonymUserSession),
-      anonymSessionSecretKey,
-    );
+  if (existingCookie) {
+    try {
+      session = await decryptWeb(existingCookie.value, anonymSessionSecretKey);
 
-    res.cookies.set(AnonymSessionCookieName, encrypted, {
-      path: '/',
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-    });
+      if (!session?.userId || !session?.token) {
+        throw new Error('Invalid anonym cookie session payload');
+      }
+    } catch {
+      session = {
+        userId: uuidv4(),
+        token: getCsrfToken(),
+      };
+    }
   } else {
-    const decrypted = await decryptWeb(cookie.value, anonymSessionSecretKey);
-    csrfToken = (decrypted as AnonymUserSession)?.token;
+    session = {
+      userId: uuidv4(),
+      token: getCsrfToken(),
+    };
   }
 
-  if (csrfToken) {
-    res.headers.set(AnonymSessionCSRFTokenHeaderName, csrfToken);
+  const encrypted = await encryptWeb(JSON.stringify(session), anonymSessionSecretKey);
+
+  res.cookies.set(AnonymSessionCookieName, encrypted, {
+    path: '/',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none',
+    partitioned: true,
+  });
+
+  if (session?.token) {
+    res.headers.set(AnonymSessionCSRFTokenHeaderName, session.token);
   }
 }

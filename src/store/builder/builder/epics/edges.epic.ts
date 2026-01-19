@@ -1,6 +1,5 @@
-import { concatMap, EMPTY, filter, from, map, of } from 'rxjs';
+import { concatMap, filter, from, map, of } from 'rxjs';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { Edge, Element } from '@/types/graph';
 import { HTTPMethod } from '@/types/http';
 import { BuilderRootEpic } from '@/types/store';
@@ -27,21 +26,15 @@ export const createEdgeEpic: BuilderRootEpic = (action$, state$) =>
         GraphActions.addOrUpdateElements([{ data: edge }]),
       ];
 
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/graph/edges`,
-        {
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/graph/edges`,
+        options: {
           method: HTTPMethod.POST,
           body: JSON.stringify({ data: edge }),
-          headers: { [MindmapUrlHeaderName]: mindmapFolder },
         },
         state$,
         optimisticActions,
-      );
+      });
     }),
   );
 
@@ -59,17 +52,12 @@ export const deleteEdgeEpic: BuilderRootEpic = (action$, state$) =>
         GraphActions.deleteElements([edgeId]),
       ];
 
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/graph/edges/${edgeId}`,
-        { method: HTTPMethod.DELETE, headers: { [MindmapUrlHeaderName]: mindmapFolder } },
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/graph/edges/${edgeId}`,
+        options: { method: HTTPMethod.DELETE },
         state$,
         optimisticActions,
-      );
+      });
     }),
   );
 
@@ -94,19 +82,14 @@ export const deleteGeneratedEdgesEpic: BuilderRootEpic = (action$, state$) =>
 
       const successActions = [UIActions.setIsGenEdgesDelLoaderModalOpen(false)];
 
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/graph/edges/auto`,
-        { method: HTTPMethod.DELETE, headers: { [MindmapUrlHeaderName]: mindmapFolder } },
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/graph/edges/auto`,
+        options: { method: HTTPMethod.DELETE },
         state$,
         optimisticActions,
         successActions,
-        [UIActions.setIsGenEdgesDelLoaderModalOpen(false)],
-      );
+        failureActions: [UIActions.setIsGenEdgesDelLoaderModalOpen(false)],
+      });
     }),
   );
 
@@ -124,21 +107,15 @@ export const updateEdgeEpic: BuilderRootEpic = (action$, state$) =>
         GraphActions.updateElements([{ data: edge }]),
       ];
 
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/graph/edges/${edge.id}`,
-        {
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/graph/edges/${edge.id}`,
+        options: {
           method: HTTPMethod.PUT,
           body: JSON.stringify({ data: edge }),
-          headers: { [MindmapUrlHeaderName]: mindmapFolder },
         },
         state$,
         optimisticActions,
-      );
+      });
     }),
   );
 
@@ -179,19 +156,14 @@ export const generateEdgesEpic: BuilderRootEpic = (action$, state$) =>
         );
       };
 
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/graph/edges/auto`,
-        { method: HTTPMethod.POST, headers: { [MindmapUrlHeaderName]: mindmapFolder } },
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/graph/edges/auto`,
+        options: { method: HTTPMethod.POST },
         state$,
         optimisticActions,
         successActions,
         failureActions,
         responseProcessor,
-      );
+      });
     }),
   );

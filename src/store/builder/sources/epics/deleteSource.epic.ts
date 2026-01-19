@@ -1,6 +1,5 @@
-import { concat, concatMap, EMPTY, filter, from, map, of } from 'rxjs';
+import { concat, concatMap, filter, from, map, of } from 'rxjs';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { HTTPMethod } from '@/types/http';
 import { SourceType } from '@/types/sources';
 import { BuilderRootEpic } from '@/types/store';
@@ -21,11 +20,7 @@ export const deleteSourceEpic: BuilderRootEpic = (action$, state$) =>
     })),
     concatMap(({ payload, name }) => {
       const optimisticActions = [HistoryActions.setIsUndo(true), HistoryActions.setIsRedo(false)];
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
 
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
       const fileName = payload.type === SourceType.FILE ? payload.url.split('/').at(-1) : undefined;
       const url =
         payload.type === SourceType.FILE && fileName
@@ -41,14 +36,12 @@ export const deleteSourceEpic: BuilderRootEpic = (action$, state$) =>
           }),
         );
 
-      return handleRequest(
+      return handleRequest({
         url,
-        { method: HTTPMethod.DELETE, headers: { [MindmapUrlHeaderName]: mindmapFolder } },
+        options: { method: HTTPMethod.DELETE },
         state$,
         optimisticActions,
-        [],
-        [],
         responseProcessor,
-      );
+      });
     }),
   );

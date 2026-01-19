@@ -63,6 +63,6 @@ describe('DesktopChat', () => {
       }
     });
     render(<DesktopChat />);
-    expect(screen.getByTestId('desktop-chat')).toHaveClass('xl:w-full');
+    expect(screen.getByTestId('desktop-chat')).toHaveClass('w-full');
   });
 });

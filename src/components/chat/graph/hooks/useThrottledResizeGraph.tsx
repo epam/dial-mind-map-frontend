@@ -1,41 +1,87 @@
 import { Core, LayoutOptions } from 'cytoscape';
-import throttle from 'lodash/throttle';
+import debounce from 'lodash/debounce';
 import { useEffect, useRef } from 'react';
 
+import { GraphLayoutType } from '@/types/customization';
+
 import { AnimationDurationMs, InitLayoutOptions } from '../options';
+import { applyClusteredAroundRoot } from '../utils/graph/layout/';
 
-export const useThrottledResizeGraph = (cy: Core | null, delay = AnimationDurationMs) => {
-  const cyRef = useRef<Core | null>(cy);
-  cyRef.current = cy;
+export const useThrottledResizeGraph = (
+  cy: Core | null,
+  delay = AnimationDurationMs,
+  graphLayoutType?: GraphLayoutType,
+) => {
+  const cyRef = useRef<Core | null>(null);
+  const layoutTypeRef = useRef<GraphLayoutType | undefined>(graphLayoutType);
 
-  const throttledLayout = useRef(
-    throttle(
+  useEffect(() => {
+    cyRef.current = cy;
+  }, [cy]);
+  useEffect(() => {
+    layoutTypeRef.current = graphLayoutType;
+  }, [graphLayoutType]);
+
+  const runLayout = useRef(() => {
+    const inst = cyRef.current;
+    const type = layoutTypeRef.current;
+    if (!inst) return;
+
+    if (type === GraphLayoutType.EllipticRing) {
+      applyClusteredAroundRoot(inst);
+    } else {
+      inst
+        .layout({
+          randomize: false,
+          ...InitLayoutOptions,
+        } as LayoutOptions)
+        .run();
+    }
+  }).current;
+
+  const debouncedLayout = useRef(
+    debounce(
       () => {
-        if (!cyRef.current) return;
-        cyRef.current
-          .layout({
-            randomize: false,
-            ...InitLayoutOptions,
-          } as LayoutOptions)
-          .run();
+        runLayout();
       },
       delay,
-      {
-        leading: true,
-        trailing: false,
-      },
+      { leading: false, trailing: true },
     ),
   ).current;
 
   useEffect(() => {
-    const handler = () => {
-      throttledLayout();
-    };
+    const inst = cyRef.current;
+    if (!inst) return;
+    const container = inst.container?.() as HTMLElement | undefined;
+    if (!container) return;
 
-    window.addEventListener('resize', handler);
+    let prevW = Math.round(container.clientWidth);
+    let prevH = Math.round(container.clientHeight);
+
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const rect = entry.contentRect;
+        const w = Math.round(rect.width);
+        const h = Math.round(rect.height);
+
+        if (w === prevW && h === prevH) continue;
+        prevW = w;
+        prevH = h;
+        if (!w || !h) continue;
+        debouncedLayout();
+      }
+    });
+
+    ro.observe(container);
+
     return () => {
-      window.removeEventListener('resize', handler);
-      throttledLayout.cancel();
+      ro.disconnect();
+      debouncedLayout.cancel();
     };
-  }, [throttledLayout]);
+  }, [cy, debouncedLayout]);
+
+  useEffect(() => {
+    debouncedLayout.cancel();
+    runLayout();
+  }, [graphLayoutType, runLayout, debouncedLayout]);
 };

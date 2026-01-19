@@ -3,18 +3,18 @@ import fetch from 'node-fetch';
 
 import { errorsMessages } from '@/constants/errors';
 import { HTTPMethod } from '@/types/http';
-import { ThemesConfig } from '@/types/themes';
+import { ThemesConfigs } from '@/types/themes';
 import { isAbsoluteUrl } from '@/utils/app/file';
 import { logger } from '@/utils/server/logger';
 
-let cachedTheme: ThemesConfig | undefined = undefined;
+let cachedTheme: ThemesConfigs | undefined = undefined;
 let cachedThemeExpiration: number | undefined;
 
-const getImageUrl = (theme: ThemesConfig, name: string): string | undefined => {
-  return theme.images[name as keyof ThemesConfig['images']];
+const getImageUrl = (theme: ThemesConfigs, name: string): string | undefined => {
+  return theme.images[name as keyof ThemesConfigs['images']];
 };
 
-const getImage = async (req: NextRequest, cachedTheme: ThemesConfig, name: string) => {
+const getImage = async (req: NextRequest, cachedTheme: ThemesConfigs, name: string) => {
   const imageUrl = getImageUrl(cachedTheme, name);
 
   let finalUrl = imageUrl || name;
@@ -40,7 +40,8 @@ const getImage = async (req: NextRequest, cachedTheme: ThemesConfig, name: strin
   });
 };
 
-async function handler(req: NextRequest, { params }: { params: { name: string } }) {
+async function handler(req: NextRequest, context: { params: Promise<{ name: string }> }) {
+  const params = await context.params;
   try {
     if (!process.env.THEMES_CONFIG_HOST) {
       return new NextResponse(errorsMessages.customThemesConfigNotProvided, { status: 500 });
@@ -74,7 +75,7 @@ async function handler(req: NextRequest, { params }: { params: { name: string } 
       return new NextResponse(errorsMessages.generalServer, { status: 500 });
     }
 
-    const json = (await response.json()) as ThemesConfig;
+    const json = (await response.json()) as ThemesConfigs;
 
     const dayInMs = 86400000;
     cachedThemeExpiration = Date.now() + dayInMs;

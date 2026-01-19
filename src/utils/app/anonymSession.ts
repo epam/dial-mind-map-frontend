@@ -1,6 +1,6 @@
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 
-import { AnonymSessionCookieName, AnonymSessionCSRFTokenHeaderName } from '@/constants/http';
+import { AnonymSessionCookieName } from '@/constants/http';
 import { AnonymUserSession } from '@/types/http';
 
 import { logger } from '../server/logger';
@@ -14,8 +14,7 @@ export async function handleAnonymSession(
     anonymCsrfToken: '',
   };
 
-  result.anonymCsrfToken = headers().get(AnonymSessionCSRFTokenHeaderName) ?? '';
-  const encryptedSession = cookies().get(AnonymSessionCookieName)?.value;
+  const encryptedSession = (await cookies()).get(AnonymSessionCookieName)?.value;
 
   if (!encryptedSession || !secretKey) {
     logger.warn('An anonymous session cookie is required but has not been set');
@@ -26,6 +25,7 @@ export async function handleAnonymSession(
     const decryptedSession = await decryptWeb(encryptedSession, secretKey);
     const session = decryptedSession as AnonymUserSession;
     result.isRecaptchaRequired = !session.requestQuota || session.requestQuota < 1;
+    result.anonymCsrfToken = session.token || '';
   } catch (e) {
     logger.warn('Failed to decrypt session cookie:', e);
   }

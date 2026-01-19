@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fetch from 'node-fetch';
 
 import { errorsMessages } from '@/constants/errors';
-import { EtagHeaderName, IfMatchHeaderName, MindmapUrlHeaderName } from '@/constants/http';
+import { IfMatchHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
 import { HTTPMethod } from '@/types/http';
+import { decodeAppPathSafely } from '@/utils/app/application';
 import { getApiHeaders } from '@/utils/server/get-headers';
 import { logger } from '@/utils/server/logger';
 
 export const createDocumentHandler = async (
   req: NextRequest,
   authParams: AuthParams,
-  { params }: { params: { mindmap: string; document: string; version: string } },
+  context: { params: Promise<{ mindmap: string; document?: string; version?: string }> },
 ) => {
-  const mindmapId = decodeURIComponent(params.mindmap);
+  const params = await context.params;
+  const mindmapId = decodeAppPathSafely(params.mindmap);
 
   try {
     const formData = await req.formData();
@@ -22,14 +23,13 @@ export const createDocumentHandler = async (
       authParams,
       contentType: undefined,
       IfMatch: req.headers.get(IfMatchHeaderName) ?? '',
-      [MindmapUrlHeaderName]: req.headers.get(MindmapUrlHeaderName) ?? undefined,
     });
 
     const url = params.version
-      ? `${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/sources/${params.document}/versions/${params.version}`
+      ? `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/sources/${params.document}/versions/${params.version}`
       : params.document
-        ? `${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/sources/${params.document}/versions`
-        : `${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/sources`;
+        ? `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/sources/${params.document}/versions`
+        : `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/sources`;
 
     const response = await fetch(url, {
       method: HTTPMethod.POST,
@@ -54,19 +54,46 @@ export const createDocumentHandler = async (
       return new NextResponse(errRespText, { status: response.status ?? 500 });
     }
 
-    const json = await response.json();
+    const reader = response.body!.getReader();
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
 
-    const nextHeaders = new Headers({
-      'Content-Type': 'application/json',
-    });
+    const processStream = async () => {
+      try {
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
 
-    if (response.headers.has(EtagHeaderName)) {
-      nextHeaders.set(EtagHeaderName, response.headers.get(EtagHeaderName)!);
-    }
+          if (done) break;
 
-    return NextResponse.json(json, {
-      status: response.status,
-      headers: nextHeaders,
+          buffer += decoder.decode(value, { stream: true });
+
+          let position;
+          while ((position = buffer.indexOf('\n\n')) !== -1) {
+            const rawMessage = buffer.slice(0, position);
+            buffer = buffer.slice(position + 2);
+            await writer.write(encoder.encode(`${rawMessage}\n\n`));
+            await writer.ready;
+          }
+        }
+      } catch (error) {
+        logger.error(error, 'Error receiving event');
+        await writer.write(encoder.encode(`data: ${JSON.stringify({ error: 'Error receiving event' })}\n\n`));
+      } finally {
+        await writer.close();
+      }
+    };
+
+    processStream();
+
+    return new NextResponse(readable, {
+      headers: new Headers({
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      }),
     });
   } catch (error) {
     logger.error(

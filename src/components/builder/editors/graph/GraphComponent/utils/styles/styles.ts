@@ -40,42 +40,98 @@ function measureText(node: any, fontSize?: number): { width: number; height: num
   ctx!.font = `${fStyle} ${weight} ${size}px ${family}`;
 
   const text = node.pstyle('label').strValue;
-  const maxWidth = parseInt(node.pstyle('text-max-width').strValue);
-  const lineHeight = node.pstyle('line-height').pfValue || 1; // Default to 1 if not set
-  const wrappedLines: string[] = [];
+  const maxWidth = node.pstyle('text-max-width').pfValue;
+  const lineHeight = node.pstyle('line-height').pfValue || 1;
+  const textWrap = node.pstyle('text-wrap').value;
+  const overflow = node.pstyle('text-overflow-wrap').value;
 
-  if (isNaN(maxWidth) || maxWidth <= 0) {
-    const width = Math.ceil(ctx!.measureText(text).width);
-    const height = size * lineHeight; // Height for a single line
+  // If there's no maxWidth or wrapping isn't enabled -> single-line measurement
+  if (!maxWidth || isNaN(maxWidth) || maxWidth <= 0 || textWrap !== 'wrap') {
+    const metrics = ctx!.measureText(text);
+    const width = Math.ceil(metrics.width);
+    const labelDimsHeight = size;
+    const height = labelDimsHeight;
     cachedSizes.set(label, { width, height });
     return { width, height };
   }
 
-  for (const line of text.split('\n')) {
-    let currentLine = '';
-    const words = line.match(/[\S\u200b]+|\s+/g) || [];
+  const zwsp = '\u200b';
+  const lines = text.split('\n');
+  const overflowAny = overflow === 'anywhere';
+  const wrappedLines: string[] = [];
 
-    for (const word of words) {
-      const testLine = currentLine ? `${currentLine}${word}` : word;
-      if (Math.ceil(ctx!.measureText(testLine).width) >= maxWidth && currentLine) {
-        wrappedLines.push(currentLine.trim());
-        currentLine = word;
+  // Cytoscape separator logic:
+  const separatorRegex = /[\s\u200b]+|$/g;
+
+  for (let l = 0; l < lines.length; l++) {
+    let line = lines[l];
+
+    // If overflow-anywhere -> insert zwsp between chars so matchAll splits into individual "words"
+    if (overflowAny) {
+      line = line.split('').join(zwsp);
+    }
+
+    // If the whole line fits, just push as-is
+    const metricsLine = ctx!.measureText(line);
+    const lineW = Math.ceil(metricsLine.width);
+
+    if (lineW <= maxWidth) {
+      wrappedLines.push(line);
+      continue;
+    }
+
+    // otherwise we must split according to separators (mimic Cytoscape's matchAll flow)
+    let subLine = '';
+    let previousIndex = 0;
+    const separatorMatches = line.matchAll(separatorRegex);
+
+    for (const separatorMatch of separatorMatches) {
+      const wordSeparator = separatorMatch[0]; // includes whitespace or zwsp OR "" at end
+      const matchIndex = separatorMatch.index ?? line.length;
+      const word = line.substring(previousIndex, matchIndex);
+      previousIndex = matchIndex + wordSeparator.length;
+
+      const testLine = subLine.length === 0 ? word : subLine + word + wordSeparator;
+      const testW = Math.ceil(ctx!.measureText(testLine).width);
+
+      if (testW <= maxWidth) {
+        // fits on current line
+        // append word + separator when not first
+        if (subLine.length === 0) {
+          subLine = word + wordSeparator;
+        } else {
+          subLine = subLine + word + wordSeparator;
+        }
       } else {
-        currentLine = testLine;
+        // word would overflow current line
+        if (subLine) {
+          // push the sub-line exactly as cytoscape does (it keeps separators)
+          wrappedLines.push(subLine);
+        }
+        // start new sub-line with word + separator
+        subLine = word + wordSeparator;
       }
     }
 
-    if (currentLine.trim()) {
-      wrappedLines.push(currentLine.trim());
+    if (subLine && !subLine.match(/^[\s\u200b]+$/)) {
+      wrappedLines.push(subLine);
     }
   }
 
-  const width = Math.ceil(Math.max(...wrappedLines.map(line => ctx!.measureText(line).width)));
-  const height = wrappedLines.length * size * lineHeight; // Adjusted height using line-height
+  let width = 0;
+  let labelDimsHeight = 0;
+  for (let i = 0; i < wrappedLines.length; i++) {
+    const w = Math.ceil(ctx!.measureText(wrappedLines[i]).width);
+    width = Math.max(width, w);
+    labelDimsHeight += size;
+  }
 
-  cachedSizes.set(label, { width, height });
+  const numLines = Math.max(wrappedLines.length, 1);
+  const finalHeight = labelDimsHeight + (numLines - 1) * (lineHeight - 1) * (labelDimsHeight / numLines);
 
-  return { width, height };
+  cachedSizes.set(label, { width, height: finalHeight });
+
+  return { width, height: finalHeight };
 }
 
 export function getWidth(node: any, fontSize?: number): number {

@@ -1,37 +1,14 @@
-import cssEscape from 'css.escape';
 import { NextResponse } from 'next/server';
 import fetch from 'node-fetch';
 
 import { errorsMessages } from '@/constants/errors';
-import { inconsolata, inter } from '@/fonts/fonts';
 import { HTTPMethod } from '@/types/http';
-import { ThemesConfig } from '@/types/themes';
-import { isAbsoluteUrl } from '@/utils/app/file';
-import { getThemeIconUrl } from '@/utils/app/themes';
-import { generateColorsCssVariables, generateFontCssVariables, wrapCssContents } from '@/utils/common/themeUtils';
+import { ThemesConfigs } from '@/types/themes';
+import { mapDialThemeConfigToStyles } from '@/utils/common/themeUtils';
 import { logger } from '@/utils/server/logger';
 
 let cachedTheme = '';
 let cachedThemeExpiration: number | undefined;
-
-function generateUrlsCssVariables(variables: Record<string, string> | undefined) {
-  if (!variables) {
-    return '';
-  }
-
-  let cssContent = '';
-  Object.entries(variables).forEach(([variable, value]) => {
-    if (!value) {
-      return;
-    }
-    let compiledValue = value;
-    if (!isAbsoluteUrl(value)) {
-      compiledValue = getThemeIconUrl(value);
-    }
-    cssContent += `--${cssEscape(variable)}: url('${compiledValue}');\n`;
-  });
-  return cssContent;
-}
 
 async function handler() {
   if (!process.env.THEMES_CONFIG_HOST) {
@@ -62,24 +39,12 @@ async function handler() {
     return new NextResponse(errorsMessages.generalServer, { status: 500 });
   }
 
-  const json = (await response.json()) as ThemesConfig;
+  const json = (await response.json()) as ThemesConfigs;
 
   const dayInMs = 86400000;
 
   try {
-    cachedTheme = [
-      ...json.themes.map(theme =>
-        wrapCssContents(`.${theme.id}`, [
-          generateColorsCssVariables(theme.colors),
-          generateUrlsCssVariables({ 'app-logo': theme['app-logo'] }),
-          generateFontCssVariables({
-            'theme-font': theme['font-family'] ?? inter.style.fontFamily,
-            'codeblock-font': theme['font-codeblock'] ?? inconsolata.style.fontFamily,
-          }),
-        ]),
-      ),
-      generateUrlsCssVariables({ ...json.images }),
-    ].join('\n');
+    cachedTheme = mapDialThemeConfigToStyles(json);
     cachedThemeExpiration = Date.now() + dayInMs;
 
     return new NextResponse(cachedTheme, {

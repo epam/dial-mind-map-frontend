@@ -2,7 +2,7 @@ import { MindmapIconsFolderName } from '@/constants/app';
 
 import { getAppearanceFileUrl } from '../themes';
 
-export const getColorizedIconPath = (rawPath: string, color: string, mindmapFolder: string) => {
+export const getColorizedIconPath = (rawPath: string, color: string, mindmapId: string) => {
   let path = undefined;
   if (!rawPath) {
     return path;
@@ -12,7 +12,7 @@ export const getColorizedIconPath = (rawPath: string, color: string, mindmapFold
   if (rawPath.startsWith(`${MindmapIconsFolderName}/`)) {
     const encoded = onlyPath.replace(/[^/]+$/, encodeURIComponent);
 
-    path = `/api/${mindmapFolder}${encoded}`;
+    path = `/api/mindmaps/${encodeURIComponent(mindmapId)}/${encoded}`;
   }
 
   const isSvg = !!path?.endsWith('.svg');
@@ -27,19 +27,13 @@ export const getColorizedIconPath = (rawPath: string, color: string, mindmapFold
   return path ?? 'none';
 };
 
-export const getColorizedStorageIconPath = (
-  iconName: string,
-  color: string,
-  appName: string,
-  theme: string,
-  appFolder: string,
-) => {
+export const getColorizedStorageIconPath = (iconName: string, color: string, appName: string, theme: string) => {
   let path = undefined;
   if (!iconName) {
     return path;
   }
 
-  path = getAppearanceFileUrl(appName, theme, iconName, appFolder);
+  path = getAppearanceFileUrl(appName, theme, iconName);
 
   if (iconName.endsWith('.svg')) {
     const param = `currentColor=${encodeURIComponent(color)}`;

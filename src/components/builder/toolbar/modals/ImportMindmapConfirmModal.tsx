@@ -1,6 +1,6 @@
 import { ModalState } from '@/types/modal';
 
-import Modal from '../../common/Modal';
+import Modal from '../../../common/Modal';
 
 interface ImportMindMapConfirmModalProps {
   isOpen: boolean;

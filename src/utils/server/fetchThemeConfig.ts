@@ -1,15 +1,15 @@
 import { defaultConfig } from '@/constants/appearances/defaultConfig';
-import { EtagHeaderName, MindmapUrlHeaderName } from '@/constants/http';
+import { EtagHeaderName } from '@/constants/http';
 import { Application } from '@/types/application';
 import { ThemeConfig } from '@/types/customization';
 import { HTTPMethod } from '@/types/http';
+import { ThemesConfigs } from '@/types/themes';
 
-import { generateMindmapFolderPath } from '../app/application';
 import { getApiHeaders } from './get-headers';
 import { getAuthParamsFromServer } from './getAuthParamsFromServer';
 import { logger } from './logger';
 
-export const fetchThemeConfig = async (
+export const fetchChatThemeConfig = async (
   theme: string,
   app?: Application,
 ): Promise<[ThemeConfig | null, string | null]> => {
@@ -20,16 +20,13 @@ export const fetchThemeConfig = async (
       return [null, null];
     }
 
-    const path = app?.application_properties?.mindmap_folder ?? generateMindmapFolderPath(app);
     const auth = await getAuthParamsFromServer();
 
-    const host = (process.env.MINDMAP_BACKEND_URL || '').replace(/\/+$/, '');
-    const url = `${host}/mindmaps/${encodeURIComponent(name)}/appearances/themes/${encodeURIComponent(theme)}`;
+    const url = `${process.env.DIAL_API_HOST}/v1/deployments/${name}/route/v1/appearances/themes/${encodeURIComponent(theme)}`;
 
     const headers = getApiHeaders({
       authParams: auth,
       contentType: 'application/json',
-      [MindmapUrlHeaderName]: path,
     });
 
     const res = await fetch(url, {
@@ -78,5 +75,31 @@ export const fetchThemeConfig = async (
   } catch (error) {
     logger.error({ err: error }, 'fetchThemeConfig failed');
     return [null, null];
+  }
+};
+
+export const fetchDialThemeConfig = async (): Promise<ThemesConfigs | null> => {
+  try {
+    const res = await fetch(`${process.env.THEMES_CONFIG_HOST}/config.json`, {
+      method: HTTPMethod.GET,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => '');
+      logger.warn(
+        { status: res.status, statusText: res.statusText, body: errorText?.slice(0, 1000) },
+        `Error fetching the DIAL theme`,
+      );
+
+      return null;
+    }
+
+    const json = (await res.json()) as ThemesConfigs;
+
+    return json;
+  } catch (error) {
+    logger.error({ err: error }, 'fetchThemeConfig failed');
+    return null;
   }
 };

@@ -16,9 +16,9 @@ import { SourceInputField } from './SourceInputField';
 interface SourceInputProps {
   index: number;
   field: Source;
-  editableIndex: number | null;
   editMode: SourceEditMode;
-  hoveredIndex: number | null;
+  isEdited: boolean;
+  isHovered: boolean;
   selectedRows: number[];
   isValid: boolean;
   errors: FieldErrors<FormValues>;
@@ -37,9 +37,9 @@ interface SourceInputProps {
 export const SourceInput: React.FC<SourceInputProps> = ({
   index,
   field,
-  editableIndex,
   editMode,
-  hoveredIndex,
+  isEdited,
+  isHovered,
   selectedRows,
   isValid,
   errors,
@@ -58,14 +58,14 @@ export const SourceInput: React.FC<SourceInputProps> = ({
   const sourcesNames = useBuilderSelector(SourcesSelectors.selectSourcesNames);
 
   useEffect(() => {
-    if (editableIndex === index && inputRef.current) {
+    if (isEdited && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [editableIndex, index, field.type]);
+  }, [isEdited, index, field.type]);
 
   const renderSourceStatus = useCallback(
     (field: Source) => {
-      if (editableIndex === index) return null;
+      if (isEdited) return null;
 
       if (!field.status || field.status === SourceStatus.INPROGRESS || inProgressUrls.includes(field.url)) {
         return <Loader size={16} containerClassName="absolute left-1 !w-fit" loaderClassName="!text-primary" />;
@@ -100,7 +100,7 @@ export const SourceInput: React.FC<SourceInputProps> = ({
 
       return null;
     },
-    [editableIndex, index, generationStatus, inProgressUrls],
+    [isEdited, index, generationStatus, inProgressUrls],
   );
 
   return (
@@ -113,7 +113,7 @@ export const SourceInput: React.FC<SourceInputProps> = ({
           control={control}
           rules={{
             validate: value => {
-              if (editableIndex !== index) return true;
+              if (!isEdited) return true;
 
               if (editMode === 'rename') {
                 return value ? true : 'Invalid name';
@@ -131,9 +131,9 @@ export const SourceInput: React.FC<SourceInputProps> = ({
             <SourceInputField
               field={field}
               index={index}
-              editableIndex={editableIndex}
               editMode={editMode}
-              hoveredIndex={hoveredIndex}
+              isEdited={isEdited}
+              isHovered={isHovered}
               selectedRows={selectedRows}
               hasError={!!errors.sources?.[index]?.url}
               value={
@@ -156,10 +156,10 @@ export const SourceInput: React.FC<SourceInputProps> = ({
         <div
           className={classNames(
             'absolute right-2 flex items-center gap-2',
-            editableIndex !== index && 'opacity-0 group-hover:opacity-100 transition-opacity',
+            !isEdited && 'opacity-0 group-hover:opacity-100 transition-opacity',
           )}
         >
-          {editableIndex === index ? (
+          {isEdited ? (
             <>
               {isValid && (
                 <Tooltip tooltip="Confirm" contentClassName="text-sm px-2 text-primary">

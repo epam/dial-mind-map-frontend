@@ -13,7 +13,6 @@ import {
   throwError,
 } from 'rxjs';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { GenerationStatus } from '@/types/sources';
 import { BuilderRootEpic } from '@/types/store';
 
@@ -31,14 +30,12 @@ export const generationStatusSubscribeEpic: BuilderRootEpic = (action$, state$) 
     filter(BuilderActions.generationStatusSubscribe.match),
     mergeMap(() => {
       const name = ApplicationSelectors.selectApplicationName(state$.value);
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
 
       return from(
         fetch(`/api/mindmaps/${encodeURIComponent(name)}/generation_status`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            [MindmapUrlHeaderName]: mindmapFolder,
           },
         }),
       ).pipe(

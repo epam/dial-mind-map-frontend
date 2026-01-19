@@ -1,6 +1,5 @@
 import { Action } from '@reduxjs/toolkit';
 import cloneDeep from 'lodash-es/cloneDeep';
-import isEqual from 'lodash-es/isEqual';
 import { combineEpics } from 'redux-observable';
 import {
   catchError,
@@ -20,11 +19,11 @@ import { fromFetch } from 'rxjs/fetch';
 
 import { DefaultMaxNodesLimit } from '@/constants/app';
 import { DeploymentIdHeaderName } from '@/constants/http';
-import { Edge, Element, Graph, GraphElement, Node } from '@/types/graph';
+import { CompletionGraphResponse, Edge, Element, GraphElement, Node } from '@/types/graph';
 import { HTTPMethod } from '@/types/http';
 import { ChatRootEpic } from '@/types/store';
 import { ToastType } from '@/types/toasts';
-import { adjustVisitedNodes, getEdgeId } from '@/utils/app/graph/common';
+import { getEdgeId, removeVisitedNode } from '@/utils/app/graph/common';
 
 import { AppearanceSelectors } from '../appearance/appearance.reducers';
 import { ApplicationSelectors } from '../application/application.reducer';
@@ -97,6 +96,7 @@ const handleNavigationEpic: ChatRootEpic = (action$, state$) =>
       }
 
       const actionsToDispatch: Action[] = [
+        MindmapActions.closeFullscreenReferences(),
         MindmapActions.addVisitedNodeId({ newNodeId: payload.clickedNodeId, prevNodeId: focusNodeId }),
         MindmapActions.setFocusNodeId(payload.clickedNodeId),
         ConversationActions.updateConversation({
@@ -169,17 +169,12 @@ const fetchGraphEpic: ChatRootEpic = (action$, state$) =>
         if (previousNodeId && previousNodeId !== focusNodeId) {
           body['previous_node'] = previousNodeId;
         }
-        if (
-          focusedNodeId &&
-          previousNodeId &&
-          !elements.some((el: any) => el.data.target === focusedNodeId && el.data.source === previousNodeId) &&
-          focusedNodeId !== previousNodeId
-        ) {
+        if (focusedNodeId && previousNodeId && focusedNodeId !== previousNodeId) {
           body.edges = [
             ...(body.edges ?? []),
             {
               data: {
-                id: getEdgeId(focusNodeId, previousNodeId),
+                id: getEdgeId(focusedNodeId, previousNodeId),
                 target: focusedNodeId,
                 source: previousNodeId,
                 type: 'Manual',
@@ -187,7 +182,7 @@ const fetchGraphEpic: ChatRootEpic = (action$, state$) =>
             },
             {
               data: {
-                id: getEdgeId(focusNodeId, previousNodeId),
+                id: getEdgeId(focusedNodeId, previousNodeId),
                 target: previousNodeId,
                 source: focusedNodeId,
                 type: 'Manual',
@@ -234,16 +229,21 @@ const fetchGraphEpic: ChatRootEpic = (action$, state$) =>
               );
             }
           }),
-          mergeMap((response: Graph) => {
+          mergeMap(({ graph, responseId }: CompletionGraphResponse) => {
+            const actions: Action[] = [];
+            if (responseId) {
+              actions.push(MindmapActions.setCompletionGraphResponseId(responseId));
+            }
+
             if (elements.length === 0) {
               const savedFocusedNodeId = focusNodeId || customViewState.focusNodeId;
-              const savedFocusedNode = response.nodes.find(node => node.data.id === savedFocusedNodeId);
-              const newFocusedNodeId = savedFocusedNode ? savedFocusedNodeId : response.nodes[0].data.id;
+              const savedFocusedNode = graph.nodes.find(node => node.data.id === savedFocusedNodeId);
+              const newFocusedNodeId = savedFocusedNode ? savedFocusedNodeId : graph.nodes[0].data.id;
 
-              return of(
+              actions.push(
                 MindmapActions.init({
                   ...MindmapInitialState,
-                  elements: [...response.nodes, ...response.edges],
+                  elements: [...graph.nodes, ...graph.edges],
                   isReady: true,
                   focusNodeId: newFocusedNodeId,
                   visitedNodes: customViewState.visitedNodeIds,
@@ -251,22 +251,21 @@ const fetchGraphEpic: ChatRootEpic = (action$, state$) =>
                   isRootNodeNotFound: false,
                 }),
               );
+
+              return concat(actions);
             } else {
-              const actions: Action[] = [MindmapActions.resetSequentialFetchFailures()];
+              actions.push(MindmapActions.resetSequentialFetchFailures());
 
-              const newElements = [...response.nodes, ...response.edges];
-              const isGraphChanged = !isEqual(elements, newElements);
+              const newElements = [...graph.nodes, ...graph.edges];
 
-              if (isGraphChanged) {
-                actions.push(
-                  MindmapActions.updateElements({
-                    elements: newElements,
-                  }),
-                );
-              }
+              actions.push(
+                MindmapActions.updateElements({
+                  elements: newElements,
+                }),
+              );
 
               if (!focusedNodeId) {
-                actions.unshift(MindmapActions.setFocusNodeId(response.nodes[0].data.id));
+                actions.unshift(MindmapActions.setFocusNodeId(graph.nodes[0].data.id));
               }
 
               return concat(actions);
@@ -334,7 +333,7 @@ const fetchGraphFailEpic: ChatRootEpic = (action$, state$) =>
       let newFocusNodeId = '';
 
       if (sequentialFetchFailures < MaxGraphFetchRetries) {
-        filteredVisitedNodes = adjustVisitedNodes(visitedNodeIds, payload.nodeId);
+        filteredVisitedNodes = removeVisitedNode(visitedNodeIds, payload.nodeId);
         newFocusNodeId = payload.previousNodeId;
       }
 

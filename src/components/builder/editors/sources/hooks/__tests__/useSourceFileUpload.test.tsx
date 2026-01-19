@@ -1,7 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { ChangeEvent } from 'react';
 
-import { FilesActions } from '@/store/builder/files/files.reducers';
 import { useBuilderDispatch } from '@/store/builder/hooks';
 import { UIActions } from '@/store/builder/ui/ui.reducers';
 import { SourceType } from '@/types/sources';
@@ -33,37 +32,13 @@ const mockDispatch = jest.fn();
 const createMockFile = (name: string, type = 'text/plain') => new File(['content'], name, { type });
 
 describe('useSourceFileUpload', () => {
-  const folderPath = 'folder';
   const watchedSources = [{ type: SourceType.FILE, url: 'sources/existing.txt', name: 'existing.txt', id: '1' }] as any;
   const handleAddSource = jest.fn();
 
-  const setup = () => renderHook(() => useSourceFileUpload({ folderPath, watchedSources, handleAddSource }));
+  const setup = () => renderHook(() => useSourceFileUpload({ watchedSources, handleAddSource }));
 
   beforeEach(() => {
     jest.clearAllMocks();
-  });
-
-  it.skip('uploads valid files', async () => {
-    const file = createMockFile('newfile.txt');
-    (sanitizeAndReportFiles as jest.Mock).mockReturnValue([file]);
-
-    const { result } = setup();
-
-    const input = {
-      target: { files: [file], value: '' },
-    } as unknown as ChangeEvent<HTMLInputElement>;
-
-    await result.current.handleSelectFiles(input);
-
-    expect(handleAddSource).toHaveBeenCalledWith('sources/newfile.txt', SourceType.FILE, 'text/plain');
-    expect(mockDispatch).toHaveBeenCalledWith(
-      FilesActions.uploadFile({
-        fileContent: file,
-        id: 'folder/newfile.txt',
-        relativePath: folderPath,
-        name: 'newfile.txt',
-      }),
-    );
   });
 
   it('shows error toast for duplicates files in different sources', async () => {
@@ -112,7 +87,14 @@ describe('useSourceFileUpload', () => {
 
     await result.current.handleSelectFiles(input);
 
-    expect(sanitizeAndReportFiles).toHaveBeenCalledWith([], expect.any(Function), expect.anything(), expect.anything());
+    expect(sanitizeAndReportFiles).toHaveBeenCalledWith(
+      [],
+      expect.any(Function),
+      expect.anything(),
+      expect.anything(),
+      undefined,
+      true,
+    );
     expect(handleAddSource).not.toHaveBeenCalled();
     expect(mockDispatch).not.toHaveBeenCalled();
   });

@@ -19,9 +19,10 @@ import { handleAnonymSession } from '@/utils/app/anonymSession';
 import { getFontUrl } from '@/utils/app/fonts';
 import { getChatAppCookie } from '@/utils/app/getChatAppCookie';
 import { nextauthOptions } from '@/utils/auth/auth-callbacks';
-import { themeConfigToStyles } from '@/utils/common/themeUtils';
+import { splitAndFilter } from '@/utils/common/list';
+import { mapThemeConfigToStyles } from '@/utils/common/themeUtils';
 import { fetchApplication } from '@/utils/server/fetchApplication';
-import { fetchThemeConfig } from '@/utils/server/fetchThemeConfig';
+import { fetchChatThemeConfig } from '@/utils/server/fetchThemeConfig';
 
 export const metadata: Metadata = {
   title: 'Chat',
@@ -36,25 +37,30 @@ export default async function RootLayout({
   const session = await getServerSession();
   const availableProviders = nextauthOptions.providers;
   const dialChatHost = process.env.DIAL_CHAT_HOST || '';
+  const dialIframeAllowedHosts = process.env.DIAL_IFRAME_ALLOWED_HOSTS || '';
   const mindmapIframeTitle = process.env.MINDMAP_IFRAME_TITLE || '';
-  const isAllowApiKeyAuth = process.env.ALLOW_API_KEY_AUTH || false;
+  const isAllowApiKeyAuth = !!process.env.DIAL_API_KEY || false;
   const chatDisclaimer = process.env.CHAT_DISCLAIMER;
   const recaptchaSiteKey = process.env.RECAPTCHA_SITE_KEY || '';
   const anonymSessionSecretKey = process.env.ANONYM_SESSION_SECRET_KEY || '';
+  const isRecaptchaConfigured = isAllowApiKeyAuth && !!recaptchaSiteKey && !!anonymSessionSecretKey;
+  const isProdEnv = process.env.NODE_ENV === 'production';
   const authUiMode =
-    (headers().get('x-auth-mode') as AuthUiMode) || (process.env.AUTH_UI_MODE as AuthUiMode) || AuthUiMode.Popup;
+    ((await headers()).get('x-auth-mode') as AuthUiMode) ||
+    (process.env.AUTH_UI_MODE as AuthUiMode) ||
+    AuthUiMode.Popup;
 
-  const isPlayback = headers().get('x-playback') === 'true';
+  const isPlayback = (await headers()).get('x-playback') === 'true';
 
   let isRecaptchaRequired = false;
   let anonymCsrfToken = '';
-  if (isAllowApiKeyAuth) {
+  if (isRecaptchaConfigured) {
     const settings = await handleAnonymSession(anonymSessionSecretKey);
     isRecaptchaRequired = settings.isRecaptchaRequired;
     anonymCsrfToken = settings.anonymCsrfToken;
   }
 
-  const appCookie = getChatAppCookie();
+  const appCookie = await getChatAppCookie();
 
   const { application, error: appFetchError } = await fetchApplication(appCookie.id);
 
@@ -62,32 +68,21 @@ export default async function RootLayout({
   const validApplication = application && 'reference' in application ? application : undefined;
   let themeConfig = null;
   let etag = null;
+
   if (validApplication) {
-    const [themeConfigRes, etagRes] = await fetchThemeConfig(appCookie.theme, validApplication);
+    const [themeConfigRes, etagRes] = await fetchChatThemeConfig(appCookie.theme, validApplication);
     themeConfig = themeConfigRes;
     etag = etagRes;
   }
 
-  const customStyles = themeConfigToStyles(appCookie.theme, themeConfig);
+  const customStyles = mapThemeConfigToStyles(appCookie.theme, themeConfig);
   const fontFamily = themeConfig?.font?.['font-family'] ?? '';
   const fontFileName = themeConfig?.font?.fontFileName;
-  const fontUrl = getFontUrl(
-    fontFamily,
-    fontFileName,
-    validApplication?.name ?? '',
-    appCookie.theme,
-    validApplication?.application_properties?.mindmap_folder ?? '',
-  );
+  const fontUrl = getFontUrl(fontFamily, fontFileName, validApplication?.name ?? '', appCookie.theme);
 
   const graphFontFamily = themeConfig?.graph?.font?.['font-family'] ?? '';
   const graphFontFileName = themeConfig?.graph?.font?.fontFileName;
-  const graphFontUrl = getFontUrl(
-    graphFontFamily,
-    graphFontFileName,
-    validApplication?.name ?? '',
-    appCookie.theme,
-    validApplication?.application_properties?.mindmap_folder ?? '',
-  );
+  const graphFontUrl = getFontUrl(graphFontFamily, graphFontFileName, validApplication?.name ?? '', appCookie.theme);
 
   return (
     <html lang="en" className={appCookie.theme} data-color-mode={appCookie.theme}>
@@ -106,10 +101,12 @@ export default async function RootLayout({
         <SessionProvider refetchOnWindowFocus session={session} refetchWhenOffline={false}>
           <ChatStoreProvider
             dialChatHost={dialChatHost}
+            dialIframeAllowedHosts={splitAndFilter(dialIframeAllowedHosts)}
             mindmapIframeTitle={mindmapIframeTitle}
-            isAllowApiKeyAuth={isAllowApiKeyAuth === 'true' || false}
+            isAllowApiKeyAuth={isAllowApiKeyAuth || false}
             recaptchaSiteKey={recaptchaSiteKey}
             isRecaptchaRequired={isRecaptchaRequired}
+            isRecaptchaConfigured={isRecaptchaConfigured}
             anonymCsrfToken={anonymCsrfToken}
             chatDisclaimer={chatDisclaimer}
             providers={availableProviders ? Object.values(availableProviders).map(provider => provider.id) : []}
@@ -120,6 +117,8 @@ export default async function RootLayout({
             redirectToForbidden={appFetchError?.status === 403}
             authUiMode={authUiMode}
             isPlayback={isPlayback}
+            isProdEnv={isProdEnv}
+            theme={appCookie.theme}
           >
             <Toasts />
             <main className="h-screen w-screen flex-col overflow-hidden bg-layer-1 text-sm text-primary">

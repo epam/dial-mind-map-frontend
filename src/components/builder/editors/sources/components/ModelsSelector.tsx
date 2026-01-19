@@ -1,4 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
+import classNames from 'classnames';
 import { useState } from 'react';
 import Select, { components, OptionProps, SingleValueProps } from 'react-select';
 
@@ -12,6 +13,7 @@ interface ModelSelectorProps {
   disabled?: boolean;
   fallbackIcon?: string;
   isLoading?: boolean;
+  singleLine?: boolean;
 }
 
 const isUrl = (value?: string): boolean => {
@@ -34,13 +36,18 @@ const ModelIcon: React.FC<{ iconUrl?: string; displayName?: string; fallbackIcon
   );
 };
 
-const ModelOption = (props: OptionProps<Model>) => {
+const ModelOption = (props: OptionProps<Model & { singleLine?: boolean }>) => {
   const { data } = props;
   return (
     <components.Option {...props}>
       <div className="flex items-center gap-2">
         <ModelIcon iconUrl={data.icon_url} displayName={data.display_name} />
-        <div className="flex flex-col">
+        <div
+          className={classNames('flex', {
+            'flex-col': !data.singleLine,
+            'gap-2 justify-center items-center': data.singleLine,
+          })}
+        >
           <span className="text-sm">{data.display_name}</span>
           {data.display_version && <span className="text-xs text-secondary">{data.display_version}</span>}
         </div>
@@ -49,13 +56,18 @@ const ModelOption = (props: OptionProps<Model>) => {
   );
 };
 
-const ModelSingleValue = (props: SingleValueProps<Model>) => {
-  const { data } = props;
+const ModelSingleValue = (props: SingleValueProps<Model> & { singleLine?: boolean }) => {
+  const { data, singleLine } = props;
   return (
     <components.SingleValue {...props}>
       <div className="flex items-center gap-2">
         <ModelIcon iconUrl={data.icon_url} displayName={data.display_name} />
-        <div className="flex flex-col">
+        <div
+          className={classNames('flex', {
+            'flex-col': !singleLine,
+            'gap-2 justify-center items-center': singleLine,
+          })}
+        >
           <span className="text-sm">{data.display_name}</span>
           {data.display_version && <span className="text-xs text-secondary">{data.display_version}</span>}
         </div>
@@ -71,8 +83,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   placeholder = 'Select model...',
   disabled = false,
   isLoading = false,
+  singleLine = false,
 }) => {
-  const options = models.map(model => ({ ...model, value: model.id, label: model.display_name }));
+  const options = models.map(model => ({ ...model, value: model.id, label: model.display_name, singleLine }));
 
   return (
     <Select
@@ -96,7 +109,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         control: (styles, { isFocused }) => ({
           ...styles,
           display: 'flex',
-          backgroundColor: 'var(--bg-layer-2)',
+          backgroundColor: 'var(--bg-layer-3)',
           borderColor: isFocused ? 'var(--stroke-accent-primary)' : 'var(--stroke-primary)',
           borderRadius: 3,
           padding: '2px 4px',
@@ -152,7 +165,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       }}
       components={{
         Option: ModelOption,
-        SingleValue: ModelSingleValue,
+        SingleValue: props => <ModelSingleValue {...props} singleLine={singleLine} />,
       }}
     />
   );

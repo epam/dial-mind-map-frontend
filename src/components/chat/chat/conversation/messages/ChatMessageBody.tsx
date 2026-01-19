@@ -5,6 +5,7 @@ import { Space } from '@/components/common/Space/Space';
 import { AppearanceSelectors } from '@/store/chat/appearance/appearance.reducers';
 import { useChatSelector } from '@/store/chat/hooks';
 import { MindmapSelectors } from '@/store/chat/mindmap/mindmap.reducers';
+import { ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
 import { Message } from '@/types/chat';
 import { ChatNodeResourceKey, ChatNodeType, IconResourceKey } from '@/types/customization';
 import { ColoredNode } from '@/types/graph';
@@ -26,17 +27,25 @@ export const ChatMessageBody = ({ nodes, message, isMessageStreaming, isLastMess
   const themeConfig = useChatSelector(AppearanceSelectors.selectThemeConfig);
   const chatNodeThemeConfig = themeConfig?.chat?.chatNode;
   const arrowBackIconName = themeConfig?.icons?.[IconResourceKey.ArrowBackIcon];
+  const visitedNodesIds = Object.entries(visitedNodes).flatMap(([key, value]) => [key, value]);
+
+  const deviceType = useChatSelector(ChatUISelectors.selectDeviceType);
+  const isDesktop = deviceType === DeviceType.Desktop;
+  const isTablet = deviceType === DeviceType.Tablet;
+  const isMdUp = isTablet || isDesktop;
 
   if (!message.content && message.errorMessage) {
     return <ErrorMessage error={message.errorMessage} classes="mr-5 text-sm" />;
   }
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-3 xl:gap-4">
+    <div className={classNames('flex min-w-0 flex-1 flex-col', isDesktop ? 'gap-4' : 'gap-3')}>
       <div
-        className={classNames([
-          'max-w-full prose dark:prose-invert prose-a:text-accent-primary prose-a:no-underline hover:prose-a:underline text-sm xl:text-base leading-normal md:leading-[1.7]',
-        ])}
+        className={classNames(
+          'max-w-full prose dark:prose-invert prose-a:text-accent-primary prose-a:no-underline hover:prose-a:underline',
+          isDesktop ? 'text-base' : 'text-sm',
+          isMdUp ? 'leading-[1.7]' : 'leading-normal',
+        )}
       >
         <MarkdownRenderer
           text={message.content}
@@ -55,7 +64,7 @@ export const ChatMessageBody = ({ nodes, message, isMessageStreaming, isLastMess
               textColor={n.textColor}
               label={n.label}
               isPrevious={previousNodeId === n.id}
-              isVisited={!!visitedNodes[n.id]}
+              isVisited={visitedNodesIds.includes(n.id)}
               type={chatNodeThemeConfig?.availableNodeType ?? ChatNodeType.Filled}
               radius={chatNodeThemeConfig?.['corner-radius']}
               borderColor={n.borderColor}

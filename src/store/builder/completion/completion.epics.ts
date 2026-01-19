@@ -1,3 +1,4 @@
+import { Action } from '@reduxjs/toolkit';
 import { combineEpics } from 'redux-observable';
 import {
   catchError,
@@ -12,7 +13,6 @@ import {
   switchMap,
   tap,
   throwError,
-  timeout,
   TimeoutError,
 } from 'rxjs';
 
@@ -22,11 +22,13 @@ import { Attachment, ChatBody, Message, Role } from '@/types/chat';
 import { NodesMIMEType } from '@/types/files';
 import { Edge, Element, GraphElement, Node } from '@/types/graph';
 import { BuilderRootEpic } from '@/types/store';
-import { getFocusNodeResponseId } from '@/utils/app/conversation';
-import { isEdge, isNode } from '@/utils/app/graph/typeGuards';
+import { getNodeResponseId } from '@/utils/app/conversation';
+import { isEdge } from '@/utils/app/graph/typeGuards';
 import { mergeMessages, parseStreamMessages } from '@/utils/app/merge-streams';
+import { isAbortError } from '@/utils/common/error';
 
 import { ApplicationSelectors } from '../application/application.reducer';
+import { BuilderActions } from '../builder/builder.reducers';
 import { GraphActions, GraphSelectors } from '../graph/graph.reducers';
 import { UIActions } from '../ui/ui.reducers';
 import { checkForUnauthorized } from '../utils/checkForUnauthorized';
@@ -38,7 +40,7 @@ const completionStreamEpic: BuilderRootEpic = (action$, state$) =>
     filter(CompletionActions.sendCompletionRequest.match),
     switchMap(({ payload }) => {
       const { userMessage, nodeId, customFields, updatedField } = payload;
-      const assistantMessageId = getFocusNodeResponseId(nodeId);
+      const assistantMessageId = getNodeResponseId(nodeId);
       const decoder = new TextDecoder();
       let eventData = '';
 
@@ -108,7 +110,6 @@ const completionStreamEpic: BuilderRootEpic = (action$, state$) =>
           };
 
           return subj.asObservable().pipe(
-            timeout(120000),
             mergeMap(val =>
               iif(
                 () => val.done,
@@ -130,30 +131,28 @@ const completionStreamEpic: BuilderRootEpic = (action$, state$) =>
                       if (isEdge(el.data)) {
                         edges.push(el as Element<Edge>);
                       } else {
+                        el.data.questions = el.data.questions ?? [userMessage] ?? [];
                         nodes.push(el as Element<Node>);
                       }
                     }
-                    const updated = [...nodes, ...edges];
 
-                    const focusNode = GraphSelectors.selectFocusNode(state$.value);
-                    const filtered = updatedField
-                      ? updated.map(graphElement => {
-                          if (isNode(graphElement.data)) {
-                            const updatedValue = graphElement.data[updatedField];
-                            return {
-                              ...graphElement,
-                              data: {
-                                ...focusNode,
-                                [updatedField]: updatedValue,
-                                question: userMessage,
-                              } as Node,
-                            };
-                          }
-                          return graphElement;
-                        })
-                      : updated;
+                    const actions: Action[] = [CompletionActions.streamCompletionSuccess()];
 
-                    return of(CompletionActions.streamCompletionSuccess(), GraphActions.addOrUpdateElements(filtered));
+                    if (updatedField && nodes.length) {
+                      const focusNode = GraphSelectors.selectFocusNode(state$.value);
+                      const updatedValue = nodes[0].data[updatedField];
+
+                      actions.push(
+                        BuilderActions.updateNode({
+                          ...focusNode,
+                          [updatedField]: updatedValue,
+                        }),
+                      );
+                    } else {
+                      actions.push(GraphActions.addOrUpdateElements([...nodes, ...edges]));
+                    }
+
+                    return concat(actions);
                   }),
                 ),
                 of(val).pipe(
@@ -176,7 +175,7 @@ const completionStreamEpic: BuilderRootEpic = (action$, state$) =>
         }),
         globalCatchUnauthorized(),
         catchError(err => {
-          if (err.name === 'AbortError') {
+          if (isAbortError(err)) {
             return of(UIActions.showErrorToast('Generation was canceled.'));
           }
           if (err instanceof TimeoutError) {

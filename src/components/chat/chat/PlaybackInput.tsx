@@ -6,6 +6,7 @@ import { BlinkingCursor } from '@/components/common/BlinkingCursor';
 import { ChatInputPlaceholder } from '@/constants/app';
 import { AppearanceSelectors } from '@/store/chat/appearance/appearance.reducers';
 import { useChatSelector } from '@/store/chat/hooks';
+import { ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
 
 import { usePlayback } from './hooks/usePlayback';
 
@@ -13,6 +14,11 @@ export const PlaybackInput = () => {
   const { onNextPlaybackStep, onPreviousPlaybackStep, value, isPreviousStepDisabled, isNextStepDisabled, showCursor } =
     usePlayback();
   const placeholder = useChatSelector(AppearanceSelectors.selectChatConfig)?.placeholder ?? ChatInputPlaceholder;
+
+  const deviceType = useChatSelector(ChatUISelectors.selectDeviceType);
+  const isDesktop = deviceType === DeviceType.Desktop;
+  const isTablet = deviceType === DeviceType.Tablet;
+  const isMdUp = isTablet || isDesktop;
 
   const textRef = useRef<HTMLDivElement>(null);
 
@@ -23,12 +29,17 @@ export const PlaybackInput = () => {
   }, [value]);
 
   return (
-    <div className={classNames('flex items-center w-full rounded-[3px] bg-layer-3 h-11 md:h-[48px] px-1')}>
+    <div
+      className={classNames(
+        'flex h-full w-full rounded-[3px] bg-layer-3 px-1 chat-footer__input items-end',
+        isMdUp ? 'min-h-[48px] py-[12px]' : 'min-h-11 py-[10px]',
+      )}
+    >
       <button
         type="button"
         onClick={onPreviousPlaybackStep}
         className={classNames(
-          'flex size-8 items-center justify-center rounded transition-colors duration-200 hover:text-accent-primary',
+          'flex size-6 items-center justify-center rounded transition-colors duration-200 hover:text-accent-primary',
           {
             'text-controls-disable pointer-events-none': isPreviousStepDisabled,
           },
@@ -41,15 +52,13 @@ export const PlaybackInput = () => {
 
       <div
         className={classNames(
-          'flex-1 px-3 py-[6px] text-base font-normal bg-transparent outline-none select-text cursor-default whitespace-pre',
-          'overflow-x-auto [scrollbar-width:none] [ms-overflow-style:none] [::-webkit-scrollbar:hidden]',
+          'h-full flex-1 px-3 text-base font-normal bg-transparent outline-none select-text cursor-default',
+          'whitespace-pre-wrap max-h-[150px] overflow-y-auto content-center',
           !value && 'text-controls-disable',
         )}
-        aria-readonly="true"
-        tabIndex={-1}
         ref={textRef}
       >
-        <span>{value || placeholder}</span>
+        <span className="h-full">{value || placeholder}</span>
         <BlinkingCursor isShowing={showCursor} />
       </div>
 
@@ -57,7 +66,7 @@ export const PlaybackInput = () => {
         type="button"
         onClick={onNextPlaybackStep}
         className={classNames(
-          'flex size-8 items-center justify-center rounded transition-colors duration-200 hover:text-accent-primary',
+          'flex size-6 items-center justify-center rounded transition-colors duration-200 hover:text-accent-primary',
           {
             'text-controls-disable pointer-events-none': isNextStepDisabled,
           },

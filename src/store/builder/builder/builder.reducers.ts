@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-import { GenerateParams, GenerationType } from '@/types/generate';
+import { GenerationType, InternalGenerateParams } from '@/types/generate';
 import { Edge, Element, Graph, Node, PositionedElement } from '@/types/graph';
 import { Model } from '@/types/model';
 import { GenerationStatus, Source } from '@/types/sources';
@@ -28,9 +28,20 @@ export const BuilderInitialState: BuilderState = {
   currentModelId: null,
   prompt: '',
   defaultSimpleModeModel: '',
+  availableSimpleModeModels: [],
   defaultSimpleModePrompt: '',
   isMindmapExportInProgress: false,
   isMindmapImportInProgress: false,
+  chatPrompt: '',
+  chatGuardrailsPrompt: '',
+  chatGuardrailsEnabled: false,
+  chatGuardrailsResponsePrompt: '',
+  chatModel: '',
+  availableChatModels: [],
+  defaultChatModel: '',
+  defaultChatPrompt: '',
+  defaultChatGuardrailsPrompt: '',
+  defaultChatGuardrailsResponsePrompt: '',
 };
 
 export const builderSlice = createSlice({
@@ -83,6 +94,17 @@ export const builderSlice = createSlice({
       state,
       { payload }: PayloadAction<{ positionedNodes: PositionedElement<Node>[]; historySkip?: boolean }>,
     ) => state,
+    patchGraph: (
+      state,
+      {
+        payload,
+      }: PayloadAction<{
+        nodes?: PositionedElement<Node>[];
+        edges?: Element<Edge>[];
+        historySkip?: boolean;
+        edgesIdsToDelete?: string[];
+      }>,
+    ) => state,
     setNodeAsRoot: (state, { payload }: PayloadAction<string>) => state,
     generateEdges: state => state,
     deleteGeneratedEdges: state => state,
@@ -103,31 +125,27 @@ export const builderSlice = createSlice({
     setIsGenerated: (state, { payload }: PayloadAction<boolean>) => {
       state.isGenerated = payload;
     },
-    setGenerationType: (state, { payload }: PayloadAction<GenerationType>) => {
-      state.generationType = payload;
-    },
     setModels: (state, { payload }: PayloadAction<Model[]>) => {
       state.models = payload;
     },
     fetchModels: state => {
       state.isModelsLoading = true;
     },
-    setCurrentModel: (state, { payload }: PayloadAction<string | null>) => {
-      state.currentModelId = payload;
-    },
-    setPrompt: (state, { payload }: PayloadAction<string>) => {
-      state.prompt = payload;
-    },
     setIsModelsLoading: (state, { payload }: PayloadAction<boolean>) => {
       state.isModelsLoading = payload;
     },
     fetchGenerateParams: state => state,
-    setGenerateParams: (state, { payload }: PayloadAction<GenerateParams>) => {
+    setGenerateParams: (state, { payload }: PayloadAction<InternalGenerateParams>) => {
       state.prompt = payload.prompt || null;
       state.currentModelId = payload.model || null;
       state.generationType = payload.type || GenerationType.Universal;
+      state.chatModel = payload.chatModel || null;
+      state.chatPrompt = payload.chatPrompt || null;
+      state.chatGuardrailsPrompt = payload.chatGuardrailsPrompt || null;
+      state.chatGuardrailsEnabled = payload.chatGuardrailsEnabled ?? false;
+      state.chatGuardrailsResponsePrompt = payload.chatGuardrailsResponsePrompt || null;
     },
-    updateGenerateParams: (state, { payload }: PayloadAction<GenerateParams>) => state,
+    updateGenerateParams: (state, { payload }: PayloadAction<InternalGenerateParams>) => state,
 
     exportMindmap: state => {
       state.isMindmapExportInProgress = true;
@@ -148,6 +166,7 @@ export const builderSlice = createSlice({
     importMindmapFailure: (state, { payload }: PayloadAction<string>) => {
       state.isMindmapImportInProgress = false;
     },
+    uploadIcon: (state, action: PayloadAction<{ file: File; name: string; nodeId: string; iconPath: string }>) => state,
   },
 });
 

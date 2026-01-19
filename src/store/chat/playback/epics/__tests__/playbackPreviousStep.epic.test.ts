@@ -42,7 +42,7 @@ describe('playbackPreviousStepEpic', () => {
       expectObservable(output$).toBe('-(abcdefg)-', {
         a: PlaybackActions.setStepNumber(1),
         b: PlaybackActions.revertConversation(),
-        c: PlaybackActions.setPlaybackInputText('textOld'),
+        c: PlaybackActions.setPlaybackInputText(''),
         d: MindmapActions.setVisitedNodes(visitedNodes),
         e: MindmapActions.setGraphElements(prevAction.mindmap.elements),
         f: MindmapActions.setFocusNodeId('mappedFocus'),
@@ -117,7 +117,7 @@ describe('playbackPreviousStepEpic', () => {
       expectObservable(output$).toBe('-(abcdefg)-', {
         a: PlaybackActions.setStepNumber(0),
         b: PlaybackActions.revertConversation(),
-        c: PlaybackActions.setPlaybackInputText('previousAction'),
+        c: PlaybackActions.setPlaybackInputText(''),
         d: MindmapActions.setVisitedNodes(prevAction.mindmap.visitedNodes),
         e: MindmapActions.setGraphElements(prevAction.mindmap.elements),
         f: MindmapActions.setFocusNodeId(prevAction.mindmap.focusNodeId),
@@ -145,9 +145,8 @@ describe('playbackPreviousStepEpic', () => {
       const action$ = hot('-a-', { a: PlaybackActions.playbackPreviousStep() });
       const output$ = playbackPreviousStepEpic(action$, { value: {} } as any);
 
-      expectObservable(output$).toBe('-(abcdef)-', {
+      expectObservable(output$).toBe('-(acdef)-', {
         a: PlaybackActions.setStepNumber(0),
-        b: PlaybackActions.setPlaybackInputText(''),
         c: MindmapActions.setVisitedNodes(previousAction.mindmap.visitedNodes),
         d: MindmapActions.setGraphElements(previousAction.mindmap.elements),
         e: MindmapActions.setFocusNodeId(previousAction.mindmap.focusNodeId),
@@ -175,12 +174,13 @@ describe('playbackPreviousStepEpic', () => {
       const action$ = hot('-a-', { a: PlaybackActions.playbackPreviousStep() });
       const output$ = playbackPreviousStepEpic(action$, { value: {} } as any);
 
-      expectObservable(output$).toBe('-(abcde)-', {
+      expectObservable(output$).toBe('-(abcdef)-', {
         a: PlaybackActions.setStepNumber(0),
         b: MindmapActions.setDepth(previousAction.mindmap.depth),
         c: MindmapActions.setVisitedNodes(previousAction.mindmap.visitedNodes),
         d: MindmapActions.setGraphElements(previousAction.mindmap.elements),
         e: MindmapActions.setFocusNodeId(previousAction.mindmap.focusNodeId),
+        f: PlaybackActions.setPlaybackInputText(''),
       });
     });
   });

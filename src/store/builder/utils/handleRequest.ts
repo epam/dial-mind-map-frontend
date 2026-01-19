@@ -18,7 +18,7 @@ interface FetchError extends Error {
   newEtag?: string;
 }
 
-export const handleRequestNew = ({
+export const handleRequest = ({
   url,
   options,
   state$,
@@ -36,28 +36,7 @@ export const handleRequestNew = ({
   failureActions?: Action[];
   responseProcessor?: (resp: Response) => Observable<Action>;
   skipContentType?: boolean;
-}) =>
-  handleRequest(
-    url,
-    options,
-    state$,
-    optimisticActions,
-    successActions,
-    failureActions,
-    responseProcessor,
-    skipContentType,
-  );
-
-export const handleRequest = (
-  url: string,
-  options: RequestInit,
-  state$: StateObservable<any>,
-  optimisticActions: Action[] = [],
-  successActions: Action[] = [],
-  failureActions: Action[] = [],
-  responseProcessor?: (resp: Response) => Observable<Action>,
-  skipContentType: boolean = false,
-): Observable<Action> => {
+}): Observable<Action> => {
   const makeRequest = (etag: string): Observable<Action> => {
     const updatedOptions = {
       ...options,

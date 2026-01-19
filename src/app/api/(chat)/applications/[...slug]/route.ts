@@ -8,16 +8,22 @@ import { getEntityUrlFromSlugs } from '@/utils/server/getEntityUrlFromSlugs';
 import { logger } from '@/utils/server/logger';
 import { withLogger } from '@/utils/server/withLogger';
 
-async function handleGetRequest(req: NextRequest, authParams: AuthParams, context: { params: { slug: string[] } }) {
+async function handleGetRequest(
+  req: NextRequest,
+  authParams: AuthParams,
+  context: { params: Promise<{ slug: string[] }> },
+) {
+  const params = await context.params;
   try {
-    const url = getEntityUrlFromSlugs(process.env.DIAL_API_HOST!, context.params.slug);
+    const url = getEntityUrlFromSlugs(process.env.DIAL_API_HOST!, params.slug);
 
     let proxyRes;
     try {
+      const headers = getApiHeaders({
+        authParams: authParams,
+      });
       proxyRes = await fetch(url, {
-        headers: getApiHeaders({
-          authParams: authParams,
-        }),
+        headers,
       });
       logger.info({ status: proxyRes.status, statusText: proxyRes.statusText }, 'Received response from entity API.');
     } catch (fetchError) {
@@ -36,6 +42,11 @@ async function handleGetRequest(req: NextRequest, authParams: AuthParams, contex
         },
         'Entity API responded with an error.',
       );
+
+      if (proxyRes.status === 401) {
+        return NextResponse.json({ error: 'RefreshAccessTokenError' }, { status: 401 });
+      }
+
       return NextResponse.json(
         { error: 'Entity API responded with an error.' },
         { status: proxyRes.status, statusText: proxyRes.statusText },
@@ -62,13 +73,18 @@ async function handleGetRequest(req: NextRequest, authParams: AuthParams, contex
       headers,
     });
   } catch (error) {
-    logger.error({ error, context }, 'An error occurred while handling the GET request.');
+    logger.error({ error, params }, 'An error occurred while handling the GET request.');
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-async function handlePutRequest(req: NextRequest, authParams: AuthParams, context: { params: { slug: string[] } }) {
-  const url = getEntityUrlFromSlugs(process.env.DIAL_API_HOST!, context.params.slug);
+async function handlePutRequest(
+  req: NextRequest,
+  authParams: AuthParams,
+  context: { params: Promise<{ slug: string[] }> },
+) {
+  const params = await context.params;
+  const url = getEntityUrlFromSlugs(process.env.DIAL_API_HOST!, params.slug);
 
   const reqHeaders = getApiHeaders({
     authParams: authParams,

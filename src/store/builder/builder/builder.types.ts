@@ -14,10 +14,21 @@ export interface BuilderState {
   generationType: GenerationType;
   models: Model[];
   currentModelId: string | null;
+  chatModel: string | null;
+  chatPrompt: string | null;
+  chatGuardrailsEnabled: boolean;
+  chatGuardrailsPrompt: string | null;
+  chatGuardrailsResponsePrompt: string | null;
   prompt: string | null;
   isModelsLoading?: boolean;
   defaultSimpleModeModel: string;
+  availableSimpleModeModels: string[];
   defaultSimpleModePrompt: string;
+  defaultChatModel: string;
+  availableChatModels: string[];
+  defaultChatPrompt: string;
+  defaultChatGuardrailsPrompt: string;
+  defaultChatGuardrailsResponsePrompt: string;
   isMindmapExportInProgress: boolean;
   isMindmapImportInProgress: boolean;
 }

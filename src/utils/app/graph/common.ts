@@ -1,21 +1,48 @@
 export const getEdgeId = (source: string, target: string): string => `E${source}_${target}`;
 
-export function adjustVisitedNodes(
-  visitedNodeIds: Record<string, string>,
-  nodeToRemove: string,
-): Record<string, string> {
-  // Step 1: Get the previous node of the node to remove
-  const previousNode = visitedNodeIds[nodeToRemove];
+/**
+ * Removes a node from the visited map.
+ * Re-links all nodes pointing to `nodeId` to point to its previous node instead.
+ */
+export function removeVisitedNode(visited: Record<string, string>, nodeId: string): Record<string, string> {
+  const previousNode = visited[nodeId];
 
-  // Step 2: Replace references to the node to remove with its previous node
-  for (const [key, value] of Object.entries(visitedNodeIds)) {
-    if (value === nodeToRemove) {
-      visitedNodeIds[key] = previousNode;
+  // Redirect all references from nodeId → previousNode
+  for (const [key, value] of Object.entries(visited)) {
+    if (value === nodeId) {
+      visited[key] = previousNode;
     }
   }
 
-  // Step 3: Remove the node to remove as a key
-  delete visitedNodeIds[nodeToRemove];
+  delete visited[nodeId];
+  return visited;
+}
 
-  return visitedNodeIds;
+/**
+ * Replaces one node with another in the visited map.
+ * - Moves incoming references from oldNode → newNode.
+ * - Moves outgoing reference (if exists) oldNode → newNode.
+ * - Removes oldNode key and inserts newNode key.
+ */
+export function replaceVisitedNode(
+  visited: Record<string, string>,
+  oldNode: string,
+  newNode: string,
+): Record<string, string> {
+  const previousNode = visited[oldNode];
+
+  // Redirect all references pointing to oldNode → newNode
+  for (const [key, value] of Object.entries(visited)) {
+    if (value === oldNode) {
+      visited[key] = newNode;
+    }
+  }
+
+  // Replace the oldNode key with newNode key preserving "previous"
+  if (previousNode !== undefined) {
+    visited[newNode] = previousNode;
+  }
+
+  delete visited[oldNode];
+  return visited;
 }

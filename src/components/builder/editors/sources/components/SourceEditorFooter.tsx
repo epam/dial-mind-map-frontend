@@ -1,10 +1,11 @@
-import { IconDotsVertical, IconRefresh, IconTrashX } from '@tabler/icons-react';
+import { IconDotsVertical, IconFlagCheck, IconRefresh, IconTrashX } from '@tabler/icons-react';
 
 import Tooltip from '@/components/builder/common/Tooltip';
 import Button from '@/components/common/Button/Button';
 import GroupButtons from '@/components/common/GroupButtons/GroupButtons';
-import { Space } from '@/components/common/Space/Space';
-import { ToggleSwitch } from '@/components/common/ToggleSwitch/ToggleSwitch';
+import { BuilderSelectors } from '@/store/builder/builder/builder.reducers';
+import { useBuilderSelector } from '@/store/builder/hooks';
+import { SettingsSelectors } from '@/store/builder/settings/settings.reducers';
 import { GenerationStatus } from '@/types/sources';
 
 interface Props {
@@ -13,12 +14,13 @@ interface Props {
   fieldsLength: number;
   hasFailedSource: boolean;
   selectedRowsLength: number;
+  totalActiveSourcesTokens: number;
+  isLiteMode: boolean;
   onGenerate: () => void;
   onApplySelection: () => void;
   onDeleteSelection: () => void;
   onReindexSelection: () => void;
-  showSimpleModeSwitcher?: boolean;
-  onToggleSimpleMode: (checked: boolean) => void;
+  onMarkAsAppliedSelection: () => void;
 }
 
 export const SourceEditorFooter: React.FC<Props> = ({
@@ -27,65 +29,43 @@ export const SourceEditorFooter: React.FC<Props> = ({
   fieldsLength,
   hasFailedSource,
   selectedRowsLength,
+  totalActiveSourcesTokens,
+  isLiteMode,
   onGenerate,
   onApplySelection,
   onDeleteSelection,
   onReindexSelection,
-  onToggleSimpleMode,
-  showSimpleModeSwitcher = false,
+  onMarkAsAppliedSelection,
 }) => {
-  const disabledGenerate = !isValid || fieldsLength === 0 || hasFailedSource;
+  const tokensLimit = useBuilderSelector(SettingsSelectors.selectGenerationSourcesTokensLimit);
+  const currentModelId = useBuilderSelector(BuilderSelectors.selectCurrentModelId);
+  const currentChatModelId = useBuilderSelector(BuilderSelectors.selectChatModelId);
+
+  const areModelsSelected = !!currentModelId && !!currentChatModelId;
+  const isOverTokensLimit = isLiteMode && !!tokensLimit && totalActiveSourcesTokens > tokensLimit;
+  const disabledGenerate =
+    !isValid || fieldsLength === 0 || hasFailedSource || isOverTokensLimit || (isLiteMode && !areModelsSelected);
+
+  const getTooltipMessage = () => {
+    if (isOverTokensLimit) {
+      return `Token limit of ${new Intl.NumberFormat().format(tokensLimit)} exceeded. Adjust your sources.`;
+    }
+
+    if (isLiteMode && !areModelsSelected) {
+      return 'Models must be selected before generating.';
+    }
+
+    return disabledGenerate
+      ? 'Cannot generate while sources are processing or have errors. Please resolve all sources first.'
+      : 'Generate graph';
+  };
 
   if (generationStatus === GenerationStatus.NOT_STARTED) {
     return (
       <div className="flex justify-end border-t border-tertiary px-6 py-4">
-        {showSimpleModeSwitcher && (
-          <Space size="middle" className="px-5">
-            <label htmlFor="node-highlight" className="mb-1 flex min-w-20 items-center text-sm">
-              Simple mode:
-            </label>
-            <ToggleSwitch
-              isOn={false}
-              switchOnText="ON"
-              switchOFFText="OFF"
-              handleSwitch={(e: React.ChangeEvent<HTMLInputElement>) => {
-                onToggleSimpleMode(e.target.checked);
-              }}
-            />
-          </Space>
-        )}
-
-        <Tooltip
-          contentClassName="text-sm px-2 text-primary"
-          tooltip={
-            disabledGenerate
-              ? 'Cannot generate while sources are processing or have errors. Please resolve all sources first.'
-              : 'Generate graph'
-          }
-        >
+        <Tooltip contentClassName="text-sm px-2 text-primary" tooltip={getTooltipMessage()}>
           <Button disabled={disabledGenerate} variant="primary" label="Generate Graph" onClick={onGenerate} />
         </Tooltip>
-      </div>
-    );
-  }
-
-  if (showSimpleModeSwitcher && selectedRowsLength === 0) {
-    return (
-      <div className="flex justify-between border-t border-tertiary px-6 py-4">
-        <Space size="middle" className="px-5">
-          <label htmlFor="node-highlight" className="mb-1 flex min-w-20 items-center text-sm">
-            Simple mode:
-          </label>
-
-          <ToggleSwitch
-            isOn={false}
-            switchOnText="ON"
-            switchOFFText="OFF"
-            handleSwitch={(e: React.ChangeEvent<HTMLInputElement>) => {
-              onToggleSimpleMode(e.target.checked);
-            }}
-          />
-        </Space>
       </div>
     );
   }
@@ -100,10 +80,15 @@ export const SourceEditorFooter: React.FC<Props> = ({
           <Tooltip contentClassName="text-sm px-2 text-primary" tooltip="Reindex selected sources">
             <Button variant="icon" icon={<IconRefresh />} onClick={onReindexSelection} />
           </Tooltip>
+          <Tooltip contentClassName="text-sm px-2 text-primary" tooltip="Mark as applied">
+            <Button variant="icon" icon={<IconFlagCheck />} onClick={onMarkAsAppliedSelection} />
+          </Tooltip>
         </GroupButtons>
-        <Tooltip contentClassName="text-sm px-2 text-primary" tooltip="Apply to graph">
-          <Button variant="primary" label="Apply to graph" onClick={onApplySelection} />
-        </Tooltip>
+        {!isLiteMode && (
+          <Tooltip contentClassName="text-sm px-2 text-primary" tooltip="Apply to graph">
+            <Button variant="primary" label="Apply to graph" onClick={onApplySelection} />
+          </Tooltip>
+        )}
       </div>
     );
   }

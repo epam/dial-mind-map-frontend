@@ -1,14 +1,14 @@
-import { EMPTY, filter, from, merge, of } from 'rxjs';
+import { filter, from, merge, of } from 'rxjs';
 import { catchError, concatMap, debounceTime, map, share } from 'rxjs/operators';
 
-import { EtagHeaderName, MindmapUrlHeaderName } from '@/constants/http';
+import { EtagHeaderName } from '@/constants/http';
 import { HTTPMethod } from '@/types/http';
 import { BuilderRootEpic } from '@/types/store';
 
 import { ApplicationSelectors } from '../../application/application.reducer';
 import { BuilderActions } from '../../builder/builder.reducers';
 import { UIActions } from '../../ui/ui.reducers';
-import { handleRequestNew } from '../../utils/handleRequest';
+import { handleRequest } from '../../utils/handleRequest';
 import { AppearanceActions, AppearanceSelectors } from '../appearance.reducers';
 
 export const updateThemeConfigEpic: BuilderRootEpic = (action$, state$) => {
@@ -19,9 +19,6 @@ export const updateThemeConfigEpic: BuilderRootEpic = (action$, state$) => {
   const serverUpdate$ = updates$.pipe(
     debounceTime(500),
     concatMap(() => {
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) return EMPTY;
-
       const appName = ApplicationSelectors.selectApplicationName(state$.value);
       const theme = state$.value.ui.theme;
       const config = AppearanceSelectors.selectThemeConfig(state$.value);
@@ -29,11 +26,10 @@ export const updateThemeConfigEpic: BuilderRootEpic = (action$, state$) => {
       const responseProcessor = (resp: Response) =>
         from(resp.json()).pipe(map(() => BuilderActions.setEtag(resp.headers.get(EtagHeaderName))));
 
-      return handleRequestNew({
+      return handleRequest({
         url: `/api/mindmaps/${encodeURIComponent(appName)}/appearances/themes/${theme}`,
         options: {
           method: HTTPMethod.POST,
-          headers: { [MindmapUrlHeaderName]: mindmapFolder },
           body: JSON.stringify(config),
         },
         state$,

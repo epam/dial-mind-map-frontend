@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
+import { LoaderModal } from '@/components/builder/common/LoaderModal';
 import { AppearanceEditor } from '@/components/builder/editors/appearance/AppearanceEditor';
 import { MainToolbar } from '@/components/builder/toolbar/MainToolbar';
 import { AuthProviderError } from '@/components/common/AuthProviderError';
@@ -9,10 +10,12 @@ import { Forbidden } from '@/components/common/Forbidden';
 import Loader from '@/components/common/Loader';
 import { Login } from '@/components/common/Login';
 import { NetworkOfflineBanner } from '@/components/common/NetworkOfflineBanner';
+import { ServerUnavailableBanner } from '@/components/common/ServerUnavailableBanner';
 import { useBuilderInitialization } from '@/hooks/builder/content/useBuilderInitialization';
 import { useApplicationInitializer } from '@/hooks/builder/sources/useApplicationInitializer';
 import { useAuth } from '@/hooks/useAuth';
 import { useChatAuthProvider } from '@/hooks/useChatAuthProvider';
+import { AppearanceSelectors } from '@/store/builder/appearance/appearance.reducers';
 import { ApplicationSelectors } from '@/store/builder/application/application.reducer';
 import { AuthActions, AuthSelectors } from '@/store/builder/auth/auth.slice';
 import { useBuilderDispatch, useBuilderSelector } from '@/store/builder/hooks';
@@ -33,6 +36,14 @@ const CustomizePage = () => {
 
   const providers = useBuilderSelector(UISelectors.selectProviders);
 
+  const isResetThemeInProgress = useBuilderSelector(AppearanceSelectors.selectIsResetThemeInProgress);
+  const isExportInProgress = useBuilderSelector(AppearanceSelectors.selectIsExportInProgress);
+  const isImportInProgress = useBuilderSelector(AppearanceSelectors.selectIsImportInProgress);
+
+  const isLoading = useMemo(() => {
+    return isResetThemeInProgress || isExportInProgress || isImportInProgress;
+  }, [isResetThemeInProgress, isExportInProgress, isImportInProgress]);
+
   useApplicationInitializer();
 
   const { isAllowProvider, chatAuthProvider } = useChatAuthProvider({
@@ -51,6 +62,7 @@ const CustomizePage = () => {
   );
 
   const isOffline = useBuilderSelector(UISelectors.selectIsOffline);
+  const isServerUnavailable = useBuilderSelector(UISelectors.selectIsServerUnavailable);
 
   useBuilderInitialization(dialHost, mindmapIframeTitle);
 
@@ -73,6 +85,10 @@ const CustomizePage = () => {
     return <Loader containerClassName="absolute inset-0 z-10 flex size-full items-center justify-center bg-layer-2" />;
   }
 
+  if (isServerUnavailable) {
+    return <ServerUnavailableBanner />;
+  }
+
   if (isOffline) {
     return <NetworkOfflineBanner />;
   }
@@ -81,6 +97,7 @@ const CustomizePage = () => {
     <>
       <MainToolbar />
       <AppearanceEditor />
+      {isLoading && <LoaderModal text={isExportInProgress ? 'Exporting' : isImportInProgress ? 'Importing' : ''} />}
     </>
   );
 };

@@ -17,7 +17,7 @@ import {
 } from 'rxjs';
 import { fromFetch } from 'rxjs/fetch';
 
-import { EtagHeaderName, MindmapUrlHeaderName } from '@/constants/http';
+import { EtagHeaderName } from '@/constants/http';
 import { Graph } from '@/types/graph';
 import { HTTPMethod } from '@/types/http';
 import { GenerationStatus } from '@/types/sources';
@@ -45,6 +45,7 @@ import { fetchGenerateParamsEpic } from './epics/fetchGenerateParams.epic';
 import { fetchModelsEpic } from './epics/fetchModels.epic';
 import { generateMindmapEpic } from './epics/generateMindmap.epic';
 import { generationCompleteEpic, generationStatusSubscribeEpic } from './epics/generationStatusSubscribe.epic';
+import { uploadIconEpic } from './epics/icons.epics';
 import { importMindmapEpic } from './epics/importMindmap.epic';
 import {
   createNodeEpic,
@@ -54,6 +55,7 @@ import {
   updateNodeEpic,
   updateNodesPositionsEpic,
 } from './epics/nodes.epic';
+import { patchGraphEpic } from './epics/patchGraph.epic';
 import { regenerateMindmapEpic } from './epics/regenerateMindmap.epic';
 import { subscribeMindmapEpic } from './epics/subscribeMindmap.epic';
 import { redoEpic, undoEpic } from './epics/undoRedo.epic';
@@ -90,21 +92,15 @@ const patchEpic: BuilderRootEpic = (action$, state$) =>
         optimisticActions.push(HistoryActions.setIsUndo(true));
       }
 
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder) {
-        return throwError(() => new Error('Mindmap folder is not set'));
-      }
-
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/graph`,
-        {
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/graph`,
+        options: {
           method: HTTPMethod.PATCH,
           body: JSON.stringify(body),
-          headers: { [MindmapUrlHeaderName]: mindmapFolder },
         },
         state$,
         optimisticActions,
-      );
+      });
     }),
   );
 
@@ -122,13 +118,10 @@ const fetchGraphEpic: BuilderRootEpic = (action$, state$) =>
         return throwError(() => new Error('Application is not set'));
       }
 
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-
       return fromFetch(`/api/mindmaps/${encodeURIComponent(name)}/graph`, {
         method: HTTPMethod.GET,
         headers: {
           'Content-Type': 'application/json',
-          [MindmapUrlHeaderName]: mindmapFolder,
         },
       }).pipe(
         mergeMap(resp => checkForUnauthorized(resp)),
@@ -235,6 +228,7 @@ export const BuilderEpics = combineEpics(
   createEdgeEpic,
   updateEdgeEpic,
   updateNodesPositionsEpic,
+  patchGraphEpic,
   subscribeMindmapEpic,
   updateEpic,
   generateEdgesEpic,
@@ -252,4 +246,5 @@ export const BuilderEpics = combineEpics(
   updateGenerateParamsEpic,
   importMindmapEpic,
   exportMindmapEpic,
+  uploadIconEpic,
 );

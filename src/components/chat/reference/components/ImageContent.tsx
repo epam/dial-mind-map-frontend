@@ -5,8 +5,9 @@ import classNames from 'classnames';
 import { useEffect, useRef } from 'react';
 import { ReactZoomPanPinchContentRef, TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
 
+import { ApplicationSelectors } from '@/store/chat/application/application.reducer';
+import { useChatSelector } from '@/store/chat/hooks';
 import { DocsReference } from '@/types/graph';
-import { constructPath } from '@/utils/app/file';
 
 const TOOLTIP_HEADER_HEIGHT = 32; // Height of the tooltip header in pixels
 const TOOLTIP_PADDING = 22; // Padding around the tooltip content in pixels
@@ -15,18 +16,19 @@ const TOOLTIP_RESERVED_HEIGHT = TOOLTIP_HEADER_HEIGHT + TOOLTIP_PADDING;
 
 export const ImageContent = ({
   reference,
-  folderPath,
   isFullscreenReference,
   availableHeight,
 }: {
   reference: DocsReference;
-  folderPath: string;
   isFullscreenReference?: boolean;
   availableHeight?: number | null;
 }) => {
-  const { content, doc_name } = reference;
-  const imageSrc = `/${constructPath('api', folderPath, content)}`;
   const transformRef = useRef<ReactZoomPanPinchContentRef>(null);
+  const appName = useChatSelector(ApplicationSelectors.selectApplicationName);
+  const { content, doc_name } = reference;
+
+  const withoutExtension = content.slice(0, content.lastIndexOf('.'));
+  const imageSrc = `/api/mindmaps/${encodeURIComponent(appName)}/${withoutExtension}`;
 
   const { run: handleResize } = useDebounceFn(
     () => {
@@ -76,7 +78,7 @@ export const ImageContent = ({
                   }
                 : {}
             }
-            className={classNames('w-full object-contain', 'max-h-full')}
+            className={classNames('w-full object-contain min-h-[200px]', 'max-h-full')}
           />
         </TransformComponent>
       </TransformWrapper>

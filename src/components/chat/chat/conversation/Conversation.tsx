@@ -7,46 +7,80 @@ import { useChatSelector } from '@/store/chat/hooks';
 import { MindmapSelectors } from '@/store/chat/mindmap/mindmap.reducers';
 import { PlaybackSelectors } from '@/store/chat/playback/playback.selectors';
 import { AttachmentTitle, Role } from '@/types/chat';
-import { getFocusNodeResponseId } from '@/utils/app/conversation';
+import { waitForElement } from '@/utils/app/common';
+import { getDuplicateMessageId, getNodeResponseId } from '@/utils/app/conversation';
 
 import { Message } from './Message';
+import { MessageActions } from './MessageActions';
 import { ChatMessageBody } from './messages/ChatMessageBody';
 
 const scrollThrottlingTimeout = 250;
-const scrollToFocusNodeTimeout = 50;
 
 export const Conversation = () => {
   const { messages, isMessageStreaming } = useChatSelector(ConversationSelectors.selectConversation);
   const focusNodeId = useChatSelector(MindmapSelectors.selectFocusNodeId);
   const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(false);
   const isGraphFetching = useChatSelector(MindmapSelectors.selectIsGraphFetching);
-  const disableAutoScrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const disableAutoScrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const chatContainerRef = useRef<HTMLDivElement | null>(null);
   const isScrollingToFocusedRef = useRef(false);
   const lastScrollTop = useRef(0);
+  const [focusMessageId, setFocusMessageId] = useState(focusNodeId);
 
   const isPlayback = useChatSelector(PlaybackSelectors.selectIsPlayback);
   const playbackConversation = useChatSelector(PlaybackSelectors.selectPlaybackConversation);
 
   const isBotStreaming = useChatSelector(PlaybackSelectors.selectIsBotStreaming);
 
-  const visibleMessages = isPlayback ? playbackConversation?.messages || [] : messages;
+  const visibleMessages = useMemo(
+    () => (isPlayback ? playbackConversation?.messages || [] : messages),
+    [isPlayback, playbackConversation?.messages, messages],
+  );
 
   useEffect(() => {
+    const focusedMessage = visibleMessages.findLast(
+      el => el.id?.endsWith(getDuplicateMessageId('', focusNodeId)) ?? false,
+    );
+    setFocusMessageId(focusedMessage?.id ?? focusNodeId);
+  }, [visibleMessages, focusNodeId]);
+
+  useEffect(() => {
+    let canceled = false;
     isScrollingToFocusedRef.current = true;
-    setTimeout(() => {
-      if (focusNodeId && !isGraphFetching) {
-        const element = document.getElementById(focusNodeId);
-        if (element) {
-          chatContainerRef.current?.scrollTo({
-            top: element.offsetTop - chatContainerRef.current.offsetTop,
-            behavior: 'smooth',
-          });
-        }
+
+    (async () => {
+      if (!focusMessageId || isGraphFetching) {
+        isScrollingToFocusedRef.current = false;
+        return;
       }
+
+      const el = await waitForElement(focusMessageId, 2000);
+
+      if (canceled) return;
+
+      if (el && chatContainerRef.current) {
+        const container = chatContainerRef.current;
+        const elRect = el.getBoundingClientRect();
+        const contRect = container.getBoundingClientRect();
+        const offsetTopInsideContainer = container.scrollTop + (elRect.top - contRect.top);
+
+        const targetTop = Math.max(
+          0,
+          Math.min(offsetTopInsideContainer, container.scrollHeight - container.clientHeight),
+        );
+
+        isScrollingToFocusedRef.current = true;
+        container.scrollTo({ top: targetTop, behavior: 'smooth' });
+      }
+
       isScrollingToFocusedRef.current = false;
-    }, scrollToFocusNodeTimeout);
-  }, [focusNodeId, isGraphFetching]);
+    })();
+
+    return () => {
+      canceled = true;
+      isScrollingToFocusedRef.current = false;
+    };
+  }, [focusMessageId, isGraphFetching]);
 
   const setAutoScroll = () => {
     clearTimeout(disableAutoScrollTimeoutRef.current);
@@ -103,13 +137,10 @@ export const Conversation = () => {
     >
       <div className={classNames(['h-full flex flex-col'])}>
         {visibleMessages.map((message, messageIndex) => {
+          const isFocused = message.id?.replace('-response', '') === focusMessageId;
+
           return message.role === Role.User ? (
-            <Message
-              type="user"
-              key={message.id}
-              id={message.id}
-              focused={message.id?.replace('-response', '') === focusNodeId}
-            >
+            <Message type="user" key={message.id} id={message.id} focused={isFocused}>
               {message.content}
             </Message>
           ) : (
@@ -129,11 +160,14 @@ export const Conversation = () => {
                 isLastMessage={messageIndex === messages.length - 1}
                 message={message}
                 nodes={
-                  getFocusNodeResponseId(focusNodeId) === message.id && !isMessageStreaming
+                  getNodeResponseId(focusMessageId) === message.id && !isMessageStreaming
                     ? message.availableNodes
                     : undefined
                 }
               />
+              {isFocused && (
+                <MessageActions messageIndex={messageIndex} responseId={message.responseId} like={message.like} />
+              )}
             </Message>
           );
         })}

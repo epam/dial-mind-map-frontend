@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { AuthParams } from '@/types/api';
 import { DialAIError } from '@/types/error';
-import { HTTPMethod } from '@/types/http';
-import { constructPath } from '@/utils/app/file';
+import { constructPath, getMimeFromFilename } from '@/utils/app/file';
 import { withAuth } from '@/utils/auth/withAuth';
 import { ServerUtils } from '@/utils/server/api';
 import { getApiHeaders } from '@/utils/server/get-headers';
@@ -17,8 +16,13 @@ const getEntityUrlFromSlugs = (dialApiHost: string, slugs: string[]): string => 
   return constructPath(dialApiHost, 'v1', 'files', ServerUtils.encodeSlugs(slugs));
 };
 
-async function handleGetRequest(req: NextRequest, authParams: AuthParams, context: { params: { slug: string[] } }) {
-  const url = getEntityUrlFromSlugs(process.env.DIAL_API_HOST, context.params.slug);
+async function handleGetRequest(
+  req: NextRequest,
+  authParams: AuthParams,
+  context: { params: Promise<{ slug: string[] }> },
+) {
+  const params = await context.params;
+  const url = getEntityUrlFromSlugs(process.env.DIAL_API_HOST, params.slug);
   const reqHeaders = getApiHeaders({ authParams: authParams });
   delete reqHeaders['accept-encoding'];
 
@@ -38,10 +42,16 @@ async function handleGetRequest(req: NextRequest, authParams: AuthParams, contex
   headers.delete('content-encoding');
   headers.delete('transfer-encoding');
 
-  const contentType = proxyRes.headers.get('content-type');
-  if (contentType) headers.set('content-type', contentType);
+  const originalContentType = proxyRes.headers.get('content-type');
 
-  const isSvg = contentType && contentType.includes('image/svg+xml');
+  if (!originalContentType || originalContentType === 'application/octet-stream') {
+    headers.set('content-type', getMimeFromFilename(params.slug.at(-1) ?? ''));
+  } else {
+    headers.set('content-type', originalContentType);
+  }
+  headers.set('Content-Disposition', proxyRes.headers.get('Content-Disposition') || 'attachment');
+
+  const isSvg = headers.get('content-type')?.includes('image/svg+xml') ?? false;
   const urlObj = new URL(req.url);
   const currentColor = urlObj.searchParams.get('currentColor');
 
@@ -54,61 +64,4 @@ async function handleGetRequest(req: NextRequest, authParams: AuthParams, contex
   return new NextResponse(proxyRes.body, { headers, status: proxyRes.status });
 }
 
-async function handlePostRequest(req: NextRequest, authParams: AuthParams, context: { params: { slug: string[] } }) {
-  const url = getEntityUrlFromSlugs(process.env.DIAL_API_HOST!, context.params.slug);
-
-  const reqHeaders = getApiHeaders({
-    authParams: authParams,
-    contentType: req.headers.get('content-type') as string,
-  });
-
-  const proxyRes = await fetch(url, {
-    method: HTTPMethod.PUT,
-    headers: reqHeaders,
-    body: req.body,
-    ...({ duplex: 'half' } as any),
-  });
-
-  let json: unknown;
-  try {
-    json = await proxyRes.json();
-  } catch {
-    json = undefined;
-  }
-
-  if (!proxyRes.ok) {
-    throw new DialAIError((typeof json === 'string' && json) || proxyRes.statusText, '', '', proxyRes.status + '');
-  }
-
-  return NextResponse.json(json, { status: 200 });
-}
-
-async function handleDeleteRequest(req: NextRequest, authParams: AuthParams, context: { params: { slug: string[] } }) {
-  const url = getEntityUrlFromSlugs(process.env.DIAL_API_HOST!, context.params.slug);
-
-  const reqHeaders = getApiHeaders({
-    authParams: authParams,
-  });
-
-  const proxyRes = await fetch(url, {
-    method: HTTPMethod.DELETE,
-    headers: reqHeaders,
-  });
-
-  if (!proxyRes.ok) {
-    let json: unknown;
-    try {
-      json = await proxyRes.json();
-    } catch {
-      json = undefined;
-    }
-
-    throw new DialAIError((typeof json === 'string' && json) || proxyRes.statusText, '', '', proxyRes.status + '');
-  }
-
-  return new NextResponse(proxyRes.statusText, { status: proxyRes.status });
-}
-
 export const GET = withLogger(withAuth(handleGetRequest));
-export const POST = withLogger(withAuth(handlePostRequest));
-export const DELETE = withLogger(withAuth(handleDeleteRequest));

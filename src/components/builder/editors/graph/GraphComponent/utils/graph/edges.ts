@@ -32,28 +32,33 @@ function getIntersectionPoint(
   };
 }
 
-export function getClickPosition(event: any, edge: EdgeSingular): 'body' | 'head' {
+export function getClickPosition(event: any, edge: EdgeSingular): 'body' | 'head' | 'tail' {
   const clickPos = event.position;
   const targetNode = edge.target();
   const sourceNode = edge.source();
   const targetPos = targetNode.position();
   const sourcePos = sourceNode.position();
 
-  // Get the sizes of the source and target nodes
   const targetWidth = targetNode.width();
   const targetHeight = targetNode.height();
+  const sourceWidth = sourceNode.width();
+  const sourceHeight = sourceNode.height();
 
-  // Calculate the intersection points
+  // Intersection at head (target side)
   const targetIntersection = getIntersectionPoint(targetPos, targetWidth, targetHeight, sourcePos, targetPos);
 
-  // Calculate the distance from the click position to the target intersection point
-  const distanceToTarget = Math.sqrt(
-    Math.pow(clickPos.x - targetIntersection.x, 2) + Math.pow(clickPos.y - targetIntersection.y, 2),
-  );
+  // Intersection at tail (source side)
+  const sourceIntersection = getIntersectionPoint(sourcePos, sourceWidth, sourceHeight, targetPos, sourcePos);
 
-  // Determine the click position category
-  if (distanceToTarget <= 25) {
+  const distanceToTarget = Math.hypot(clickPos.x - targetIntersection.x, clickPos.y - targetIntersection.y);
+  const distanceToSource = Math.hypot(clickPos.x - sourceIntersection.x, clickPos.y - sourceIntersection.y);
+
+  const offset = 25;
+
+  if (distanceToTarget <= offset) {
     return 'head';
+  } else if (distanceToSource <= offset) {
+    return 'tail';
   } else {
     return 'body';
   }

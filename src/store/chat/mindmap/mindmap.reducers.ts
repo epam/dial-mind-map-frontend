@@ -24,6 +24,7 @@ export const MindmapInitialState: MindmapState = {
   fullscreenReferences: null,
   fullscreenInitialSlide: null,
   activeFullscreenReferenceId: null,
+  relayoutInProgress: false,
 };
 
 export const mindmapSlice = createSlice({
@@ -138,6 +139,17 @@ export const mindmapSlice = createSlice({
     },
     setActiveFullscreenReferenceId: (state, { payload }: PayloadAction<string | null>) => {
       state.activeFullscreenReferenceId = payload;
+    },
+    closeFullscreenReferences: state => {
+      state.fullscreenReferences = null;
+      state.fullscreenInitialSlide = null;
+      state.activeFullscreenReferenceId = null;
+    },
+    setRelayoutInProgress: (state, { payload }: PayloadAction<boolean>) => {
+      state.relayoutInProgress = payload;
+    },
+    setCompletionGraphResponseId: (state, { payload }: PayloadAction<string | undefined>) => {
+      state.completionGraphResponseId = payload;
     },
   },
 });

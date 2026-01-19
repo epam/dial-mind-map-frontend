@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import fetch from 'node-fetch';
 
 import { errorsMessages } from '@/constants/errors';
-import { EtagHeaderName, IfMatchHeaderName, MindmapUrlHeaderName } from '@/constants/http';
+import { EtagHeaderName, IfMatchHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
 import { HTTPMethod } from '@/types/http';
+import { decodeAppPathSafely } from '@/utils/app/application';
 import { withAuth } from '@/utils/auth/withAuth';
 import { extractFontFamilyFromBuffer } from '@/utils/server/font';
 import { getApiHeaders } from '@/utils/server/get-headers';
@@ -14,9 +15,10 @@ import { withLogger } from '@/utils/server/withLogger';
 const uploadFontFileHandler = async (
   req: NextRequest,
   authParams: AuthParams,
-  { params }: { params: { mindmap: string; theme: string; file: string } },
+  context: { params: Promise<{ mindmap: string; theme: string; file: string }> },
 ) => {
-  const mindmapId = decodeURIComponent(params.mindmap);
+  const params = await context.params;
+  const mindmapId = decodeAppPathSafely(params.mindmap);
 
   try {
     const formData = await req.formData();
@@ -46,11 +48,10 @@ const uploadFontFileHandler = async (
       authParams,
       contentType: undefined,
       IfMatch: req.headers.get(IfMatchHeaderName) ?? '',
-      [MindmapUrlHeaderName]: req.headers.get(MindmapUrlHeaderName) ?? undefined,
     });
 
     const response = await fetch(
-      `${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/appearances/themes/${params.theme}/storage/${encodeURIComponent(params.file)}`,
+      `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/appearances/themes/${params.theme}/storage/${encodeURIComponent(params.file)}`,
       {
         method: HTTPMethod.POST,
         headers,

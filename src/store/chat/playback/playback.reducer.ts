@@ -3,6 +3,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { Conversation, Message, PlaybackAction } from '@/types/chat';
+import { Element, GraphElement } from '@/types/graph';
 
 import { PlaybackState } from './playback.types';
 
@@ -39,9 +40,22 @@ export const playbackSlice = createSlice({
     setPlaybackConversation: (state, { payload }: { payload: Conversation }) => {
       state.playbackConversation = payload;
     },
-    playbackNextStep: state => state,
+    playbackNextStep: (state, { payload }: { payload: { afterAiGenerate?: boolean } }) => state,
     playbackPreviousStep: state => state,
-    updateConversation: (state, { payload }: { payload: { action: PlaybackAction } }) => state,
+    updateConversation: (
+      state,
+      {
+        payload,
+      }: {
+        payload: {
+          action: PlaybackAction;
+          message?: Message;
+          afterAiGenerate?: boolean;
+          previousFocusNodeId?: string;
+          previousGraphElements?: Element<GraphElement>[];
+        };
+      },
+    ) => state,
     setIsTypingPlaybackMessage: (state, { payload }: { payload: boolean }) => {
       state.isTypingPlaybackMessage = payload;
     },

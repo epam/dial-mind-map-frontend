@@ -2,23 +2,25 @@ import './DraggableChat.style.css';
 
 import { useDrag } from '@use-gesture/react';
 import classNames from 'classnames';
-import { RefObject, useEffect, useState } from 'react';
-import { animated, useSpring } from 'react-spring';
+import { CSSProperties, RefObject, useEffect, useState } from 'react';
+import { animated, AnimatedProps, useSpring } from 'react-spring';
 
 import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
 import { ChatUIActions, ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
 
 import { ChatContent } from './ChatContent';
+import { useChatBgImage } from './hooks/useChatBgImage';
 
 const MaxSize = 100;
 const MidSize = 50;
 const MinSize = 13;
 
-export const DraggableChat = ({ parentRef }: { parentRef: RefObject<HTMLDivElement> }) => {
+export const DraggableChat = ({ parentRef }: { parentRef: RefObject<HTMLDivElement | null> }) => {
   const dispatch = useChatDispatch();
   const deviceType = useChatSelector(ChatUISelectors.selectDeviceType);
   const isChatHidden = useChatSelector(ChatUISelectors.selectIsChatHidden);
   const isMapHidden = useChatSelector(ChatUISelectors.selectIsMapHidden);
+  const { classes: chatBgImageClasses, style: chatBgImageInlineStyles } = useChatBgImage();
   const isLandscapeMode = false;
 
   const isMobile = deviceType === DeviceType.Mobile;
@@ -27,9 +29,7 @@ export const DraggableChat = ({ parentRef }: { parentRef: RefObject<HTMLDivEleme
   const initSize = isChatHidden ? MinSize : isMapHidden ? MaxSize : MidSize;
 
   const [size, setSize] = useState(initSize);
-  const [{ animatedSize }, api] = useSpring(() => ({
-    animatedSize: `${initSize}%`,
-  }));
+  const [{ animatedSize }, api] = useSpring(() => ({ animatedSize: `${initSize}%` }), [initSize]);
 
   useEffect(() => {
     const targetSize = isChatHidden ? MinSize : isMapHidden ? MaxSize : MidSize;
@@ -84,12 +84,29 @@ export const DraggableChat = ({ parentRef }: { parentRef: RefObject<HTMLDivEleme
     { axis: isHorizontalMovement ? 'x' : 'y' },
   );
 
+  const getStyles = (): AnimatedProps<CSSProperties> => {
+    let styles: AnimatedProps<CSSProperties> = {};
+
+    if (isHorizontalMovement) {
+      styles = { ...styles, width: animatedSize };
+    } else {
+      styles = { ...styles, height: animatedSize, minHeight: '113px' };
+    }
+
+    if (chatBgImageInlineStyles) {
+      styles = { ...styles, ...chatBgImageInlineStyles };
+    }
+
+    return styles;
+  };
+
   return (
     <animated.div
       className={classNames([
         'draggable-chat border-primary bg-layer-1 rounded-[10px] border-2 h-full flex flex-col pt-4 absolute w-full bottom-0 z-50 chat-container',
+        chatBgImageClasses,
       ])}
-      style={isHorizontalMovement ? { width: animatedSize } : { height: animatedSize, minHeight: '113px' }}
+      style={getStyles()}
       data-testid="draggable-chat"
     >
       <div {...bind()} className="absolute top-[-7px] h-7 w-full touch-none">

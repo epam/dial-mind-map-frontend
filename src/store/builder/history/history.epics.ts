@@ -2,7 +2,6 @@ import { UnknownAction } from '@reduxjs/toolkit';
 import { combineEpics } from 'redux-observable';
 import { concat, concatMap, EMPTY, filter, from, of } from 'rxjs';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { ExtendedUndoRedo, Pages, UndoRedo } from '@/types/common';
 import { HTTPMethod } from '@/types/http';
 import { BuilderRootEpic } from '@/types/store';
@@ -10,7 +9,7 @@ import { BuilderRootEpic } from '@/types/store';
 import { ApplicationSelectors } from '../application/application.reducer';
 import { UIActions } from '../ui/ui.reducers';
 import { handleHistoryGraphResponse } from '../utils/handleHistoryGraphResponse';
-import { handleRequest, handleRequestNew } from '../utils/handleRequest';
+import { handleRequest } from '../utils/handleRequest';
 import { handleSourcesResponse } from '../utils/handleSourcesResponse';
 import { HistoryActions } from './history.reducers';
 
@@ -19,11 +18,6 @@ export const fetchUndoRedoEpic: BuilderRootEpic = (action$, state$) =>
     filter(HistoryActions.fetchUndoRedo.match),
     concatMap(() => {
       const name = ApplicationSelectors.selectApplicationName(state$.value);
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
 
       const responseProcessor = (resp: Response) =>
         from(resp.json()).pipe(
@@ -32,15 +26,12 @@ export const fetchUndoRedoEpic: BuilderRootEpic = (action$, state$) =>
           }),
         );
 
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(name)}/history`,
-        { method: HTTPMethod.GET, headers: { [MindmapUrlHeaderName]: mindmapFolder } },
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(name)}/history`,
+        options: { method: HTTPMethod.GET },
         state$,
-        [],
-        [],
-        [],
         responseProcessor,
-      );
+      });
     }),
   );
 
@@ -49,11 +40,6 @@ export const applyActionEpic: BuilderRootEpic = (action$, state$) =>
     filter(HistoryActions.applyAction.match),
     concatMap(({ payload: action }) => {
       const name = ApplicationSelectors.selectApplicationName(state$.value);
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
 
       const optimisticActions = [HistoryActions.setIsRedo(false), HistoryActions.setIsUndo(false)];
 
@@ -86,9 +72,9 @@ export const applyActionEpic: BuilderRootEpic = (action$, state$) =>
           }),
         );
 
-      return handleRequestNew({
+      return handleRequest({
         url: `/api/mindmaps/${encodeURIComponent(name)}/history?action=${action}`,
-        options: { method: HTTPMethod.POST, headers: { [MindmapUrlHeaderName]: mindmapFolder } },
+        options: { method: HTTPMethod.POST },
         state$,
         optimisticActions,
         responseProcessor,

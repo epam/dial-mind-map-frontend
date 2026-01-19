@@ -1,6 +1,7 @@
 import {
   IconDots,
   IconDownload,
+  IconFlagCheck,
   IconForms,
   IconHistory,
   IconPlus,
@@ -49,6 +50,8 @@ interface Props {
   isAddingModeRef: React.MutableRefObject<boolean>;
   generationStatus: GenerationStatus | null;
   onPasteList: (links: string[]) => void;
+  onMarkAsApplied: (id?: string) => void;
+  isLiteMode: boolean;
 }
 
 export const useSourceColumns = ({
@@ -73,6 +76,8 @@ export const useSourceColumns = ({
   isAddingModeRef,
   generationStatus,
   onPasteList,
+  onMarkAsApplied,
+  isLiteMode,
 }: Props) => {
   const columnHelper = createColumnHelper<Source>();
   const dispatch = useBuilderDispatch();
@@ -98,38 +103,19 @@ export const useSourceColumns = ({
               : dispatch(UIActions.setSourceIdToAddVersion(original.id)),
         });
 
-        elements.push(
-          // {
-          //   dataQa: 'edit',
-          //   name: 'Edit source',
-          //   Icon: IconPencilMinus,
-          //   className: 'text-sm',
-          //   onClick: () => handleEdit(index),
-          // },
-          {
-            dataQa: 'delete',
-            name: 'Delete version',
-            Icon: IconTrashX,
-            className: 'text-sm',
-            onClick: () => handleDelete(index),
-          },
-        );
+        elements.push({
+          dataQa: 'delete',
+          name: 'Delete version',
+          Icon: IconTrashX,
+          className: 'text-sm',
+          onClick: () => handleDelete(index),
+        });
 
         return elements;
       }
 
       if (generationStatus === GenerationStatus.NOT_STARTED) {
         const elements: DisplayMenuItemProps[] = [];
-
-        // if (original.type === SourceType.LINK) {
-        //   elements.push({
-        //     dataQa: 'edit',
-        //     name: 'Edit source',
-        //     Icon: IconPencilMinus,
-        //     className: 'text-sm',
-        //     onClick: () => handleEdit(index),
-        //   });
-        // }
 
         elements.push({
           dataQa: 'delete',
@@ -161,7 +147,15 @@ export const useSourceColumns = ({
       }
 
       if (original.status === SourceStatus.REMOVED) {
-        return [];
+        return [
+          {
+            dataQa: 'mark-as-applied',
+            name: 'Mark as applied',
+            Icon: IconFlagCheck,
+            className: 'text-sm',
+            onClick: () => onMarkAsApplied(original.id),
+          },
+        ];
       }
 
       const elements: DisplayMenuItemProps[] = [];
@@ -219,13 +213,21 @@ export const useSourceColumns = ({
         onClick: () => handleEdit(index, 'rename'),
       });
 
-      if (!original.in_graph) {
+      if (!original.in_graph && !isLiteMode) {
         elements.push({
           dataQa: 'add-to-graph',
           name: 'Add to graph',
           Icon: IconSitemap,
           className: 'text-sm',
           onClick: () => dispatch(UIActions.setSourceIdToApplyToGraph(original.id)),
+        });
+
+        elements.push({
+          dataQa: 'mark-as-applied',
+          name: 'Mark as applied',
+          Icon: IconFlagCheck,
+          className: 'text-sm',
+          onClick: () => onMarkAsApplied(original.id),
         });
       }
 
@@ -246,10 +248,19 @@ export const useSourceColumns = ({
         className: 'text-sm',
         onClick: () => dispatch(UIActions.setSourceIdInVersionsModal(original.id)),
       });
-
       return elements;
     },
-    [dispatch, editableIndex, generationStatus, handleDelete, handleDownload, handleEdit, handleRefreshLink],
+    [
+      dispatch,
+      editableIndex,
+      generationStatus,
+      handleDelete,
+      handleDownload,
+      handleEdit,
+      handleRefreshLink,
+      isLiteMode,
+      onMarkAsApplied,
+    ],
   );
 
   const columns = useMemo(
@@ -266,9 +277,9 @@ export const useSourceColumns = ({
               key={field.id}
               index={index}
               field={field}
-              editableIndex={editableIndex}
               editMode={editMode}
-              hoveredIndex={hoveredRow}
+              isEdited={editableIndex === info.row.index}
+              isHovered={hoveredRow === info.row.index}
               selectedRows={selectedRows}
               isValid={isValid}
               errors={errors}
@@ -427,6 +438,7 @@ export const useSourceColumns = ({
       inProgressUrls,
       generationStatus,
       getActionButtons,
+      onPasteList,
     ],
   );
 

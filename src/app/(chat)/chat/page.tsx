@@ -10,11 +10,14 @@ import { AuthProviderError } from '@/components/common/AuthProviderError';
 import { Forbidden } from '@/components/common/Forbidden';
 import { Login } from '@/components/common/Login';
 import { NetworkOfflineBanner } from '@/components/common/NetworkOfflineBanner';
+import { ServerUnavailableBanner } from '@/components/common/ServerUnavailableBanner';
+import { MIN_DESKTOP_WIDTH_DEFAULT, MIN_TABLET_WIDTH_DEFAULT } from '@/constants/app';
 import { RecaptchaProvider } from '@/hooks/recaptcha/RecaptchaProvider';
 import { useAuth } from '@/hooks/useAuth';
 import { useChatAuthProvider } from '@/hooks/useChatAuthProvider';
 import { useWindowSize } from '@/hooks/useWindowSize';
 import { AnonymSessionSelectors } from '@/store/chat/anonymSession/anonymSession.slice';
+import { AppearanceSelectors } from '@/store/chat/appearance/appearance.reducers';
 import { chatAuthActions, ChatAuthSelectors } from '@/store/chat/chatAuth/chatAuth.slice';
 import { ConversationActions } from '@/store/chat/conversation/conversation.reducers';
 import { useChatDispatch, useChatSelector } from '@/store/chat/hooks';
@@ -22,12 +25,10 @@ import { PlaybackSelectors } from '@/store/chat/playback/playback.selectors';
 import { ChatUIActions, ChatUISelectors, DeviceType } from '@/store/chat/ui/ui.reducers';
 import { isClientSessionValid } from '@/utils/auth/session';
 
-const MinTabletWidth = 768;
-const MinDesktopWidth = 1280;
-
 const ChatPage = () => {
   const dispatch = useChatDispatch();
   const dialHost = useChatSelector(ChatUISelectors.selectDialChatHost);
+  const dialIframeAllowedHosts = useChatSelector(ChatUISelectors.selectDialIframeAllowedHosts);
   const mindmapIframeTitle = useChatSelector(ChatUISelectors.selectMindmapIframeTitle);
   const isInitialized = useRef(false);
   const chatVisualizerConnector = useRef<ChatVisualizerConnector | null>(null);
@@ -39,8 +40,12 @@ const ChatPage = () => {
   const recaptchaSiteKey = useChatSelector(AnonymSessionSelectors.selectRecaptchaSiteKey);
   const authUiMode = useChatSelector(ChatUISelectors.selectAuthUiMode);
   const isPlaybackUnavailable = useChatSelector(PlaybackSelectors.selectIsPlaybackUnavailable);
+  const isRecaptchaConfigured = useChatSelector(AnonymSessionSelectors.selectIsRecaptchaConfigured);
 
   const providers = useChatSelector(ChatUISelectors.selectProviders);
+
+  const config = useChatSelector(AppearanceSelectors.selectThemeConfig);
+  const responsiveThresholds = config?.responsiveThresholds;
 
   const { isAllowProvider, chatAuthProvider } = useChatAuthProvider({
     isAllowApiKeyAuth: isAllowApiKey,
@@ -62,13 +67,13 @@ const ChatPage = () => {
     if (!width || !height) return;
 
     const determineDeviceType = () => {
-      if (width < MinTabletWidth) return DeviceType.Mobile;
-      if (width >= MinDesktopWidth) return DeviceType.Desktop;
+      if (width < (responsiveThresholds?.md ?? MIN_TABLET_WIDTH_DEFAULT)) return DeviceType.Mobile;
+      if (width >= (responsiveThresholds?.xl ?? MIN_DESKTOP_WIDTH_DEFAULT)) return DeviceType.Desktop;
       return DeviceType.Tablet;
     };
 
     dispatch(ChatUIActions.setDeviceType(determineDeviceType()));
-  }, [width, height, dispatch]);
+  }, [width, height, dispatch, responsiveThresholds]);
 
   const conversationId = decodeURIComponent(searchParams.get('conversationId') ?? '');
   const applicationId = decodeURIComponent(searchParams.get('id') ?? '');
@@ -104,16 +109,19 @@ const ChatPage = () => {
   );
 
   const isOffline = useChatSelector(ChatUISelectors.selectIsOffline);
+  const isServerUnavailable = useChatSelector(ChatUISelectors.selectIsServerUnavailable);
 
   useEffect(() => {
     if (!isInitialized.current) {
-      if (!chatVisualizerConnector.current && dialHost && mindmapIframeTitle) {
-        chatVisualizerConnector.current = new ChatVisualizerConnector(dialHost, mindmapIframeTitle, data => {
+      const host = dialIframeAllowedHosts?.length ? dialIframeAllowedHosts : dialHost;
+
+      if (!chatVisualizerConnector.current && host && mindmapIframeTitle) {
+        chatVisualizerConnector.current = new ChatVisualizerConnector(host, mindmapIframeTitle, data => {
           setData(data);
         });
       }
 
-      if (dialHost && mindmapIframeTitle) {
+      if (host && mindmapIframeTitle) {
         chatVisualizerConnector.current?.sendReady();
         chatVisualizerConnector.current?.sendReadyToInteract();
       }
@@ -138,7 +146,18 @@ const ChatPage = () => {
       chatVisualizerConnector.current?.destroy();
       chatVisualizerConnector.current = null;
     };
-  }, [dispatch, theme, setData, applicationId, conversationId, dialHost, mindmapIframeTitle, session, isAllowApiKey]);
+  }, [
+    dispatch,
+    theme,
+    setData,
+    applicationId,
+    conversationId,
+    dialHost,
+    dialIframeAllowedHosts,
+    mindmapIframeTitle,
+    session,
+    isAllowApiKey,
+  ]);
 
   if (!isAllowProvider) {
     return <AuthProviderError provider={chatAuthProvider ?? ''} availableProviders={providers} />;
@@ -162,12 +181,16 @@ const ChatPage = () => {
     );
   }
 
+  if (isServerUnavailable) {
+    return <ServerUnavailableBanner />;
+  }
+
   if (isOffline) {
     return <NetworkOfflineBanner />;
   }
 
   return (
-    <RecaptchaProvider siteKey={recaptchaSiteKey} isApiKeyAllowed={isAllowApiKey}>
+    <RecaptchaProvider siteKey={recaptchaSiteKey} enabled={isRecaptchaConfigured}>
       <Mindmap />
     </RecaptchaProvider>
   );

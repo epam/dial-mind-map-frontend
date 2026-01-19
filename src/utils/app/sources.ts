@@ -36,3 +36,22 @@ export const adjustSourcesStatuses = (sources: Source[]): Source[] =>
       return s;
     }
   });
+
+/**
+ * Calculates the total number of tokens across all unique active sources.
+ *
+ * @param {Source[]} sources - The list of source objects to process.
+ * @returns {number} The total sum of tokens from unique active sources.
+ */
+export const getTotalActiveSourcesTokens = (sources: Source[]): number => {
+  const seen = new Set<string>();
+  return sources.reduce((acc, { active, tokens = 0, id, version }) => {
+    if (!active) return acc;
+
+    const key = `${id}:${version}`;
+    if (seen.has(key)) return acc;
+
+    seen.add(key);
+    return acc + tokens;
+  }, 0);
+};

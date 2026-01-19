@@ -1,6 +1,7 @@
 import {
   CytoscapeLayoutSettings,
   CytoscapeNodeTypesStyles,
+  GraphLayoutType,
   GraphNodeState,
   GraphNodeType,
   NodeStylesKey,
@@ -65,6 +66,7 @@ export const defaultConfig: Record<string, ThemeConfig> = {
     },
     chat: { placeholder: 'Type your question' },
     graph: {
+      layout: GraphLayoutType.EllipticRing,
       paletteSettings: {
         branchesColors: [
           { bgColor: '#FF8E8E', textColor: '#141A23' },
@@ -144,6 +146,7 @@ export const defaultConfig: Record<string, ThemeConfig> = {
     },
     chat: { placeholder: 'Type your question' },
     graph: {
+      layout: GraphLayoutType.EllipticRing,
       paletteSettings: {
         branchesColors: [
           { bgColor: '#8C1756' },
@@ -223,6 +226,7 @@ export const defaultConfig: Record<string, ThemeConfig> = {
     },
     chat: { placeholder: 'Type your question' },
     graph: {
+      layout: GraphLayoutType.EllipticRing,
       paletteSettings: {
         branchesColors: [
           { bgColor: '#E47E46', textColor: '#FFFFFF' },

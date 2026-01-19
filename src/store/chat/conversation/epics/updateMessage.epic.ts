@@ -3,11 +3,12 @@ import cloneDeep from 'lodash-es/cloneDeep';
 import { concat, EMPTY, filter, map, Observable, of, switchMap } from 'rxjs';
 
 import { AI_ROBOT_ICON_NAME } from '@/constants/app';
-import { AttachmentTitle } from '@/types/chat';
+import { AttachmentTitle, Role } from '@/types/chat';
 import { NodesMIMEType } from '@/types/files';
 import { Edge, Element, GraphElement, Node } from '@/types/graph';
 import { ChatRootEpic } from '@/types/store';
-import { adjustVisitedNodes } from '@/utils/app/graph/common';
+import { getDuplicateMessageId, getNodeResponseId } from '@/utils/app/conversation';
+import { replaceVisitedNode } from '@/utils/app/graph/common';
 import { isEdge } from '@/utils/app/graph/typeGuards';
 
 import { MindmapActions, MindmapSelectors } from '../../mindmap/mindmap.reducers';
@@ -35,28 +36,26 @@ export const updateMessageEpic: ChatRootEpic = (action$, state$) =>
 
       let customElements: Element<GraphElement>[] = [];
       let customNode: Node | null = null;
+      let customNodeId: string | null = null;
       const customViewElements = cloneDeep(conversation.customViewState.customElements);
-      const elements = MindmapSelectors.selectGraphElements(state$.value);
+      const currentGraphElements = MindmapSelectors.selectGraphElements(state$.value);
 
       if (attachment?.data) {
         customElements = JSON.parse(attachment.data) as Element<GraphElement>[];
 
         customElements.forEach(el => {
           if (isEdge(el.data)) {
-            if (!customViewElements.edges.some(e => e.data.id === el.data.id)) {
+            if (!customViewElements.edges.some(edge => edge.data.id === el.data.id)) {
               customViewElements.edges.push(el as Element<Edge>);
             }
           } else {
-            if (!customViewElements.nodes.some(n => n.data.id === el.data.id)) {
-              const currentIcon = (el.data as Node).icon
-                ? (el.data as Node).icon
-                : isAiGenerated
-                  ? AI_ROBOT_ICON_NAME
-                  : undefined;
-              const node = { ...el, data: { ...el.data, icon: currentIcon } } as Element<Node>;
+            if (!customViewElements.nodes.some(node => node.data.id === el.data.id)) {
+              const currentIcon = el.data.icon ? el.data.icon : isAiGenerated ? AI_ROBOT_ICON_NAME : undefined;
+              const node = { ...el, data: { ...el.data, icon: currentIcon } };
               customViewElements.nodes.push(node);
             }
-            customNode = el.data as Node;
+            customNode = el.data;
+            customNodeId = customNode.id;
           }
         });
       }
@@ -67,14 +66,25 @@ export const updateMessageEpic: ChatRootEpic = (action$, state$) =>
         ...payload.values,
       };
 
-      const newElements = customElements.filter(e => !elements.some(el => el.data.id === e.data.id));
+      if (customNodeId) {
+        messages[payload.messageIndex - 1] = {
+          ...messages[payload.messageIndex - 1],
+        };
+      }
+
+      const newElements = customElements.filter(
+        customElement => !currentGraphElements.some(el => el.data.id === customElement.data.id),
+      );
 
       if (newElements.length === 0 && !customNode && !payload.isInitialization) {
+        const isMessageRateUpdate = 'like' in payload.values;
+
         return concat(
           of(
             ConversationActions.updateConversation({
               values: { messages: [...messages] },
               isInitialization: payload.isInitialization,
+              needToUpdateInBucket: isMessageRateUpdate,
             }),
           ),
         );
@@ -90,28 +100,65 @@ export const updateMessageEpic: ChatRootEpic = (action$, state$) =>
       };
 
       const isDifferentNode = Boolean(customNode) && focusNodeId !== undefined && customNode!.id !== focusNodeId;
-      let filteredMessages: typeof messages = messages;
+      let filteredMessages = messages;
       let isFocusNodeNeedToUpdate = false;
 
       if (isDifferentNode) {
         isFocusNodeNeedToUpdate = true;
         customViewState.focusNodeId = customNode!.id;
-        customViewState.visitedNodeIds = adjustVisitedNodes(
-          cloneDeep(conversation.customViewState.visitedNodeIds),
-          focusNodeId,
-        );
+
+        customViewState.visitedNodeIds = replaceVisitedNode(cloneDeep(visitedNodes), focusNodeId, customNodeId!);
         customViewState.customElements.edges = customViewState.customElements.edges.filter(
           edge => !edge.data.id.includes(focusNodeId),
         );
 
-        const wasVisited = Boolean(visitedNodes[customNode!.id]);
-        if (wasVisited) {
-          filteredMessages = messages.filter(m => !m.id || !m.id.includes(focusNodeId));
+        const wasVisited =
+          Boolean(visitedNodes[customNode!.id]) || Object.values(visitedNodes).some(value => value === customNode!.id);
+
+        if (wasVisited || isAiGenerated) {
+          const lastUserMessage =
+            filteredMessages[payload.messageIndex - 1].role === Role.User
+              ? filteredMessages[payload.messageIndex - 1]
+              : null;
+          if (customNodeId && lastUserMessage) {
+            const customMessageId = wasVisited
+              ? getDuplicateMessageId(filteredMessages[payload.messageIndex - 1].id ?? '', customNodeId)
+              : customNodeId;
+
+            filteredMessages[payload.messageIndex - 1] = {
+              ...filteredMessages[payload.messageIndex - 1],
+              id: customMessageId,
+            };
+            filteredMessages[payload.messageIndex] = {
+              ...filteredMessages[payload.messageIndex],
+              id: getNodeResponseId(customMessageId),
+            };
+          }
         } else {
-          filteredMessages = [...messages];
+          filteredMessages = [];
+          // when the mapped node is added to the history for the first time
+          messages.forEach(message => {
+            if (!message.id || !message.id.includes(focusNodeId)) {
+              filteredMessages.push(message);
+            } else {
+              const updatedMessage = cloneDeep(message);
+              updatedMessage.id = message.id === focusNodeId ? customNode!.id : getNodeResponseId(customNode!.id);
+              if (message.id === getNodeResponseId(focusNodeId)) {
+                updatedMessage.role = Role.Assistant;
+              }
+              filteredMessages.push(updatedMessage);
+            }
+          });
         }
       } else {
         filteredMessages = [...messages];
+      }
+
+      if (customNodeId) {
+        const indexes = filteredMessages.map((m, i) => (m.id === customNodeId ? i : -1)).filter(i => i !== -1);
+        if (indexes.length > 1) {
+          filteredMessages = filteredMessages.filter((m, i) => !indexes.includes(i) || i === indexes[0]);
+        }
       }
 
       const actions: Observable<UnknownAction>[] = [];
@@ -125,7 +172,7 @@ export const updateMessageEpic: ChatRootEpic = (action$, state$) =>
         ),
       );
 
-      if (hasNewElements || isFocusNodeNeedToUpdate) {
+      if (hasNewElements || isDifferentNode) {
         actions.push(of(MindmapActions.fetchGraph(customViewState)));
       }
 

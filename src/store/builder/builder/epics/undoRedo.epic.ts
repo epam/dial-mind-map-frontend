@@ -2,9 +2,8 @@ import { UnknownAction } from '@reduxjs/toolkit';
 import isEqual from 'lodash-es/isEqual';
 import uniqBy from 'lodash-es/uniqBy';
 import xorWith from 'lodash-es/xorWith';
-import { concat, concatMap, EMPTY, filter, from, map, Observable, of } from 'rxjs';
+import { concat, concatMap, filter, from, map, Observable, of } from 'rxjs';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { Graph } from '@/types/graph';
 import { HTTPMethod } from '@/types/http';
 import { BuilderRootEpic } from '@/types/store';
@@ -80,20 +79,12 @@ const createUndoRedoEpic =
           );
         };
 
-        const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-        if (!mindmapFolder) {
-          return EMPTY;
-        }
-
-        return handleRequest(
-          `/api/mindmaps/${encodeURIComponent(name)}/graph/${urlPath}`,
-          { method: HTTPMethod.POST, headers: { [MindmapUrlHeaderName]: mindmapFolder } },
+        return handleRequest({
+          url: `/api/mindmaps/${encodeURIComponent(name)}/graph/${urlPath}`,
+          options: { method: HTTPMethod.POST },
           state$,
-          [],
-          [],
-          [],
           responseProcessor,
-        );
+        });
       }),
     );
 

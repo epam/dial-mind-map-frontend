@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export function withLogger<T = unknown>(handler: (req: NextRequest, context: T) => Promise<NextResponse>) {
-  return async (req: NextRequest, context: T) => {
+export function withLogger<TContext>(handler: (req: NextRequest, context: TContext) => Promise<NextResponse>) {
+  return async (req: NextRequest, context: TContext) => {
     const start = process.hrtime();
     const { pathname, searchParams } = req.nextUrl;
 

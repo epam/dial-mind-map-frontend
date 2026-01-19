@@ -2,25 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import fetch from 'node-fetch';
 
 import { errorsMessages } from '@/constants/errors';
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
 import { HTTPMethod } from '@/types/http';
+import { decodeAppPathSafely } from '@/utils/app/application';
 import { getApiHeaders } from '@/utils/server/get-headers';
 import { logger } from '@/utils/server/logger';
 
 export const getDocumentsHandler = async (
   req: NextRequest,
   authParams: AuthParams,
-  { params }: { params: { mindmap: string } },
+  context: { params: Promise<{ mindmap: string }> },
 ) => {
-  const mindmapId = decodeURIComponent(params.mindmap);
+  const params = await context.params;
+  const mindmapId = decodeAppPathSafely(params.mindmap);
+
   try {
-    const response = await fetch(`${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/sources`, {
+    const response = await fetch(`${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/sources`, {
       method: HTTPMethod.GET,
       headers: getApiHeaders({
         authParams: authParams,
         contentType: 'application/json',
-        [MindmapUrlHeaderName]: req.headers.get(MindmapUrlHeaderName) ?? undefined,
       }),
     });
 

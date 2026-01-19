@@ -6,12 +6,14 @@ export { AnonymSessionSelectors };
 export interface AnonymSessionState {
   recaptchaSiteKey: string;
   isRecaptchaRequired: boolean;
+  isRecaptchaConfigured: boolean;
   anonymCsrfToken: string;
 }
 
 const initialState: AnonymSessionState = {
   recaptchaSiteKey: '',
   isRecaptchaRequired: false,
+  isRecaptchaConfigured: false,
   anonymCsrfToken: '',
 };
 

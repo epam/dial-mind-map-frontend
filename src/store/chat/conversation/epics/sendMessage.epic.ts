@@ -1,10 +1,12 @@
 import { concat, filter, map, of, switchMap } from 'rxjs';
 
-import { Conversation, Message, Role } from '@/types/chat';
+import { Conversation, Message, PlaybackAction, PlaybackActionType, Role, ViewState } from '@/types/chat';
 import { EntityType } from '@/types/common';
 import { ChatRootEpic } from '@/types/store';
-import { getFocusNodeResponseId } from '@/utils/app/conversation';
+import { cleanGraphElementsForPlayback } from '@/utils/app/clean';
+import { getNodeResponseId } from '@/utils/app/conversation';
 
+import { MindmapSelectors } from '../../mindmap/mindmap.reducers';
 import { ConversationActions, ConversationSelectors } from '../conversation.reducers';
 
 export const sendMessageEpic: ChatRootEpic = (action$, state$) =>
@@ -24,7 +26,7 @@ export const sendMessageEpic: ChatRootEpic = (action$, state$) =>
       };
 
       const assistantMessage: Message = {
-        id: getFocusNodeResponseId(payload.message.id!),
+        id: getNodeResponseId(payload.message.id!),
         content: '',
         model: messageModel,
         settings: messageSettings,
@@ -44,11 +46,54 @@ export const sendMessageEpic: ChatRootEpic = (action$, state$) =>
 
       const updatedMessages = currentMessages.concat(userMessage, assistantMessage);
 
+      const depth = MindmapSelectors.selectDepth(state$.value);
+      const mindmapElements = MindmapSelectors.selectGraphElements(state$.value);
+      const visitedNodes = MindmapSelectors.selectVisitedNodes(state$.value);
+      const focusNodeId = MindmapSelectors.selectFocusNodeId(state$.value);
+
+      const isRetry = payload.customFields?.configuration.force_answer_generation;
+
+      const playbackActions: PlaybackAction[] = [];
+
+      if (!isRetry) {
+        playbackActions.push({
+          type: PlaybackActionType.FillInput,
+          mindmap: {
+            elements: cleanGraphElementsForPlayback(mindmapElements),
+            focusNodeId,
+            visitedNodes,
+            depth,
+          },
+          chat: {
+            userMessage: payload.message.content,
+          },
+        });
+      } else {
+        playbackActions.push({
+          type: PlaybackActionType.AIGenerateMessage,
+          mindmap: {
+            elements: cleanGraphElementsForPlayback(mindmapElements),
+            focusNodeId,
+            visitedNodes,
+            depth,
+          },
+          chat: {
+            previousMessage: conversation.messages.at(-1),
+          },
+        });
+      }
+
+      const customViewState: ViewState = {
+        ...conversation.customViewState,
+        playbackActions: [...(conversation.customViewState.playbackActions ?? []), ...playbackActions],
+      };
+
       const updatedConversation: Conversation = {
         ...conversation,
         lastActivityDate: Date.now(),
         messages: updatedMessages,
         isMessageStreaming: true,
+        customViewState,
       };
 
       return {

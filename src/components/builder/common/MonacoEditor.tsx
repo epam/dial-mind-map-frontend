@@ -30,7 +30,7 @@ interface MonacoEditorProps extends EditorProps {
 }
 
 export const MonacoEditor = memo(function MonacoEditor(props: MonacoEditorProps) {
-  const theme = useBuilderSelector(UISelectors.selectTheme);
+  const codeEditorTheme = useBuilderSelector(UISelectors.selectCodeEditorTheme);
 
   const [isFullScreen, setIsFullScreen] = useState(false);
 
@@ -79,7 +79,7 @@ export const MonacoEditor = memo(function MonacoEditor(props: MonacoEditorProps)
       >
         <Editor
           options={{ ...editorOptions, ...props.options }}
-          theme={theme === 'dark' ? 'vs-dark' : 'vs'}
+          theme={codeEditorTheme}
           {...omit(props, ['options', 'width', 'height'])}
           width="100%"
           height="100%"

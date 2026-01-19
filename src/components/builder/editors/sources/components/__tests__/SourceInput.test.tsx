@@ -75,9 +75,9 @@ const makeProps = (override: Partial<Props> = {}): Props => {
   const defaultProps: Props = {
     index: 0,
     field: defaultField,
-    editableIndex: null,
+    isEdited: false,
     editMode: 'add',
-    hoveredIndex: null,
+    isHovered: false,
     selectedRows: [],
     isValid: true,
     errors: { sources: {} } as any,
@@ -87,6 +87,7 @@ const makeProps = (override: Partial<Props> = {}): Props => {
     handleConfirmAdd: jest.fn(),
     handleRowSelection: jest.fn(),
     handleCancel: jest.fn(),
+    onPasteList: jest.fn(),
     control: { _formValues: { sources: [defaultField] } } as any,
     isAddingModeRef: { current: false },
     inProgressUrls: [],
@@ -100,7 +101,7 @@ describe('<SourceInput />', () => {
   });
 
   it('shows loader when status undefined and not editable', () => {
-    const props = makeProps({ editableIndex: null });
+    const props = makeProps({ isEdited: false });
     render(<SourceInput {...props} />);
     expect(screen.getByTestId('loader')).toBeInTheDocument();
   });
@@ -158,7 +159,7 @@ describe('<SourceInput />', () => {
   });
 
   it('focuses input if editableIndex matches index', () => {
-    const props = makeProps({ editableIndex: 0 });
+    const props = makeProps({ isEdited: true });
     render(<SourceInput {...props} />);
     const input = screen.getByTestId('source-input-field');
     expect(document.activeElement).toBe(input);
@@ -167,7 +168,7 @@ describe('<SourceInput />', () => {
   it('calls onKeyDown and handleRowSelection from SourceInputField mock', () => {
     const handleKeyDown = jest.fn();
     const handleRowSelection = jest.fn();
-    const props = makeProps({ editableIndex: null, handleKeyDown, handleRowSelection });
+    const props = makeProps({ isEdited: false, handleKeyDown, handleRowSelection });
     render(<SourceInput {...props} />);
     const input = screen.getByTestId('source-input-field');
     fireEvent.keyDown(input, { key: 'Enter' });
@@ -179,7 +180,7 @@ describe('<SourceInput />', () => {
   it('renders confirm and cancel buttons in edit mode and handles clicks', () => {
     const handleConfirmEdit = jest.fn();
     const handleCancel = jest.fn();
-    const props = makeProps({ editableIndex: 0, isValid: true, handleConfirmEdit, handleCancel });
+    const props = makeProps({ isEdited: true, isValid: true, handleConfirmEdit, handleCancel });
     render(<SourceInput {...props} />);
     const confirmWrapper = screen.getAllByTestId('tooltip').find(el => el.getAttribute('data-tooltip') === 'Confirm');
     const cancelWrapper = screen.getAllByTestId('tooltip').find(el => el.getAttribute('data-tooltip') === 'Cancel');
@@ -193,7 +194,7 @@ describe('<SourceInput />', () => {
 
   it('calls handleConfirmAdd when in adding mode', () => {
     const handleConfirmAdd = jest.fn();
-    const props = makeProps({ editableIndex: 0, isValid: true, handleConfirmAdd, isAddingModeRef: { current: true } });
+    const props = makeProps({ isEdited: true, isValid: true, handleConfirmAdd, isAddingModeRef: { current: true } });
     render(<SourceInput {...props} />);
     const confirmWrapper = screen.getAllByTestId('tooltip').find(el => el.getAttribute('data-tooltip') === 'Confirm');
     const confirmBtn = confirmWrapper!.querySelector('button')!;

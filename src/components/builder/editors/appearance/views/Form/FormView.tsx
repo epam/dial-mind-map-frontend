@@ -1,24 +1,29 @@
+import { DialAlert } from '@epam/ai-dial-ui-kit';
+import { useLocalStorageState } from 'ahooks';
 import classNames from 'classnames';
-import React, { useMemo } from 'react';
-
-import Loader from '@/components/common/Loader';
-import { AppearanceSelectors } from '@/store/builder/appearance/appearance.reducers';
-import { useBuilderSelector } from '@/store/builder/hooks';
+import React from 'react';
 
 import { FormSection } from './components/FormSection';
 import { formSections } from './data/formSection';
 
 export const FormView: React.FC = () => {
-  const isResetThemeInProgress = useBuilderSelector(AppearanceSelectors.selectIsResetThemeInProgress);
-  const isExportInProgress = useBuilderSelector(AppearanceSelectors.selectIsExportInProgress);
-  const isImportInProgress = useBuilderSelector(AppearanceSelectors.selectIsImportInProgress);
-
-  const isLoading = useMemo(() => {
-    return isResetThemeInProgress || isExportInProgress || isImportInProgress;
-  }, [isResetThemeInProgress, isExportInProgress, isImportInProgress]);
+  const [isAlertVisible, setIsAlertVisible] = useLocalStorageState('isThemeAlertVisible', {
+    defaultValue: true,
+  });
+  const onCloseAlert = () => {
+    setIsAlertVisible(false);
+  };
 
   return (
     <div className="relative mx-3 mb-3 flex h-full flex-col overflow-y-auto rounded bg-layer-3 pt-1 shadow-mindmap">
+      {isAlertVisible && (
+        <div className="flex w-full justify-start p-6">
+          <DialAlert
+            onClose={onCloseAlert}
+            message="The settings will be applied for the theme currently selected in DIAL."
+          />
+        </div>
+      )}
       {formSections.map((section, index) => (
         <div key={section.id}>
           <FormSection
@@ -47,10 +52,6 @@ export const FormView: React.FC = () => {
           )}
         </div>
       ))}
-
-      {isLoading && (
-        <Loader containerClassName="fixed inset-0 z-10 flex size-full items-center justify-center bg-layer-2 opacity-75" />
-      )}
     </div>
   );
 };

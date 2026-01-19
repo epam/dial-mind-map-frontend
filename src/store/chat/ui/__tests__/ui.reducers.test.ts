@@ -11,6 +11,7 @@ describe('chatUISlice reducer and selectors', () => {
     expect(initialState).toEqual({
       isMapHidden: false,
       isOffline: false,
+      isServerUnavailable: false,
       isChatHidden: false,
       deviceType: DeviceType.Unknown,
       dialChatHost: '',

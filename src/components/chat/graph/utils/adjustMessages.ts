@@ -4,7 +4,7 @@ import { NEW_QUESTION_LABEL } from '@/constants/app';
 import { ConversationActions } from '@/store/chat/conversation/conversation.reducers';
 import { Role } from '@/types/chat';
 import { ColoredNode, Node, SystemNodeDataKeys } from '@/types/graph';
-import { getFocusNodeResponseId } from '@/utils/app/conversation';
+import { getNodeResponseId } from '@/utils/app/conversation';
 import { getColorizedIconPath, getColorizedStorageIconPath } from '@/utils/app/graph/icons';
 
 import { getSystemImage, isSystemImg } from './icons/icons';
@@ -14,7 +14,6 @@ interface AdjustMessagesParams {
   focusNode: Node;
   dispatch: Dispatch<UnknownAction>;
   mindmapAppName: string;
-  mindmapFolder: string;
   theme: string;
   nodeColorMap?: Map<string, string>;
   previousNodeId?: string;
@@ -29,20 +28,18 @@ const getNodeImage = ({
   color,
   mindmapAppName,
   theme,
-  mindmapFolder,
 }: {
   img: string;
   customImg?: string;
   color: string;
   mindmapAppName: string;
-  mindmapFolder: string;
   theme: string;
 }) => {
   let image = undefined;
   if (!isSystemImg(img)) {
-    image = getColorizedIconPath(img, color, mindmapFolder);
+    image = getColorizedIconPath(img, color, mindmapAppName);
     if (!image && customImg) {
-      image = getColorizedStorageIconPath(customImg, color, mindmapAppName, theme, mindmapFolder);
+      image = getColorizedStorageIconPath(customImg, color, mindmapAppName, theme);
     }
   } else {
     return getSystemImage({
@@ -50,7 +47,6 @@ const getNodeImage = ({
       customImg,
       color,
       mindmapAppName,
-      mindmapFolder,
       theme,
     });
   }
@@ -62,7 +58,6 @@ export function adjustMessages({
   focusNode,
   dispatch,
   mindmapAppName,
-  mindmapFolder,
   theme,
   nodeColorMap,
   previousNodeId,
@@ -88,7 +83,6 @@ export function adjustMessages({
         color: textColor,
         customImg: defaultBgImg,
         mindmapAppName,
-        mindmapFolder,
         theme,
       });
 
@@ -115,7 +109,6 @@ export function adjustMessages({
         color: textColor,
         customImg: defaultBgImg,
         mindmapAppName,
-        mindmapFolder,
         theme,
       });
 
@@ -140,10 +133,11 @@ export function adjustMessages({
             role: Role.User,
             content: focusNode.question ?? '',
             references: focusNode.references,
+            questions: focusNode.questions,
           },
 
           {
-            id: getFocusNodeResponseId(focusNode.id),
+            id: getNodeResponseId(focusNode.id),
             role: Role.Assistant,
             content: focusNode.details ?? '',
             availableNodes: neighbors,

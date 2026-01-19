@@ -98,4 +98,6 @@ export const getLocalConversationInfo = (
   };
 };
 
-export const getFocusNodeResponseId = (focusNodeId: string) => `${focusNodeId}-response`;
+export const getNodeResponseId = (nodeId: string) => `${nodeId}-response`;
+
+export const getDuplicateMessageId = (uniqId: string, id: string) => `${uniqId}-${id}`;

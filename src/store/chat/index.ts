@@ -21,6 +21,7 @@ import { PlaybackEpics } from './playback/playback.epic';
 import { playbackSlice } from './playback/playback.reducer';
 import { ReferenceEpics } from './reference/reference.epic';
 import { referenceSlice } from './reference/reference.reducers';
+import { settingsSlice } from './settings/settings.reducers';
 import { ChatUIEpics } from './ui/ui.epics';
 import { chatUISlice } from './ui/ui.reducers';
 
@@ -46,6 +47,7 @@ const reducer = {
   reference: referenceSlice.reducer,
   appearance: appearanceSlice.reducer,
   playback: playbackSlice.reducer,
+  settings: settingsSlice.reducer,
 };
 
 let store: Store;
@@ -64,10 +66,12 @@ const getMiddleware = (epicMiddleware: EpicMiddleware<unknown, unknown, void, an
 
 export const createChatStore = ({
   dialChatHost,
+  dialIframeAllowedHosts,
   mindmapIframeTitle,
   isAllowApiKeyAuth,
   recaptchaSiteKey,
   isRecaptchaRequired,
+  isRecaptchaConfigured,
   anonymCsrfToken,
   chatDisclaimer,
   providers,
@@ -78,12 +82,16 @@ export const createChatStore = ({
   redirectToForbidden = false,
   authUiMode,
   isPlayback = false,
+  isProdEnv,
+  theme,
 }: {
   dialChatHost: string;
+  dialIframeAllowedHosts: string[];
   mindmapIframeTitle: string;
   isAllowApiKeyAuth: boolean;
   recaptchaSiteKey: string;
   isRecaptchaRequired: boolean;
+  isRecaptchaConfigured: boolean;
   anonymCsrfToken: string;
   chatDisclaimer?: string;
   providers: string[];
@@ -94,20 +102,25 @@ export const createChatStore = ({
   redirectToForbidden?: boolean;
   authUiMode: AuthUiMode;
   isPlayback?: boolean;
+  isProdEnv: boolean;
+  theme?: string;
 }) => {
   const initialState = {
     chatUI: {
       ...chatUISlice.getInitialState(),
       dialChatHost,
+      dialIframeAllowedHosts,
       mindmapIframeTitle,
       isAllowApiKeyAuth,
       chatDisclaimer,
       providers,
       authUiMode,
+      themeName: theme || 'dark',
     },
     anonymSession: {
       recaptchaSiteKey,
       isRecaptchaRequired,
+      isRecaptchaConfigured,
       anonymCsrfToken,
     },
     appearance: {
@@ -123,6 +136,9 @@ export const createChatStore = ({
     playback: {
       ...playbackSlice.getInitialState(),
       isPlayback,
+    },
+    settings: {
+      isProdEnv,
     },
   };
   if (typeof window === 'undefined') {

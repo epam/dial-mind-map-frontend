@@ -1,3 +1,4 @@
+import { UnknownAction } from '@reduxjs/toolkit';
 import { combineEpics } from 'redux-observable';
 import {
   catchError,
@@ -13,32 +14,30 @@ import {
   throwError,
 } from 'rxjs';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { ChatRootEpic } from '@/types/store';
+import { isAbortError, isNetworkError } from '@/utils/common/error';
 
-import { MindmapActions } from '../mindmap/mindmap.reducers';
+import { ConversationSelectors } from '../conversation/conversation.reducers';
+import { MindmapActions, MindmapSelectors } from '../mindmap/mindmap.reducers';
 import { checkForUnauthorized } from '../utils/checkForUnauthorized';
 import { globalCatchChatUnauthorized } from '../utils/globalCatchUnauthorized';
 import { ApplicationActions, ApplicationSelectors } from './application.reducer';
 import { fetchApplicationEpic } from './epics/fetchApplication.epic';
 import { fetchUpdatedApplicationEpic } from './epics/fetchUpdatedApplication.epic';
 
-const subscribeEpic: ChatRootEpic = (action$, state$) => {
-  return action$.pipe(
+const subscribeEpic: ChatRootEpic = (action$, state$) =>
+  action$.pipe(
     filter(ApplicationActions.subscribe.match),
     concatMap(() => {
       const appPath = ApplicationSelectors.selectEncodedApplicationPath(state$.value);
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder || !appPath) {
-        return EMPTY;
-      }
+      const controller = new AbortController();
 
       return from(
         fetch(`/api/mindmaps/${appPath}/subscribe`, {
-          method: 'POST',
+          method: 'GET',
+          signal: controller.signal,
           headers: {
             'Content-Type': 'application/json',
-            [MindmapUrlHeaderName]: mindmapFolder,
           },
         }),
       ).pipe(
@@ -64,33 +63,39 @@ const subscribeEpic: ChatRootEpic = (action$, state$) => {
 
                   for (const line of lines) {
                     if (line.startsWith('data:')) {
-                      const jsonData = line.slice(5).trim();
-                      observer.next(jsonData);
+                      observer.next(line.slice(5).trim());
                     }
                   }
 
                   buffer = lines[lines.length - 1];
                 }
                 observer.complete();
-              } catch (error) {
-                console.error(error);
+              } catch (error: any) {
+                if (isAbortError(error) || isNetworkError(error)) {
+                  observer.complete();
+                  return;
+                }
+                console.error('SSE read error:', error);
                 observer.error(error);
               }
             };
 
             read();
             return () => {
-              reader.cancel();
+              controller.abort();
             };
           });
 
           return eventObservable.pipe(
             takeUntil(fromEvent(window, 'beforeunload')),
             mergeMap(data => {
-              const parsedData = JSON.parse(data as string);
+              const parsedData = JSON.parse(data);
               return of(ApplicationActions.compareUpdatedData({ updateEvent: parsedData }));
             }),
             catchError(error => {
+              if (isAbortError(error) || isNetworkError(error)) {
+                return EMPTY;
+              }
               console.warn('SSE error:', error);
               return EMPTY;
             }),
@@ -98,13 +103,12 @@ const subscribeEpic: ChatRootEpic = (action$, state$) => {
         }),
         globalCatchChatUnauthorized(),
         catchError(error => {
-          console.warn('Subscribe Error:', error);
+          console.warn('Subscribe error:', error);
           return EMPTY;
         }),
       );
     }),
   );
-};
 
 const compareUpdatedDataEpic: ChatRootEpic = (action$, state$) => {
   return action$.pipe(
@@ -116,11 +120,17 @@ const compareUpdatedDataEpic: ChatRootEpic = (action$, state$) => {
       }
       // TODO: fetch updated application and graph and compare with current state
 
-      return of(
-        MindmapActions.fetchGraph(),
-        ApplicationActions.fetchUpdatedApplication(),
-        ApplicationActions.setEtag(updateEvent.etag),
-      );
+      const actions: UnknownAction[] = [];
+      const isMessageStreaming = ConversationSelectors.selectIsMessageStreaming(state$.value);
+      const isGraphFetching = MindmapSelectors.selectIsGraphFetching(state$.value);
+
+      if (!isMessageStreaming && !isGraphFetching) {
+        actions.push(MindmapActions.fetchGraph());
+      }
+
+      actions.push(ApplicationActions.fetchUpdatedApplication(), ApplicationActions.setEtag(updateEvent.etag));
+
+      return from(actions);
     }),
   );
 };

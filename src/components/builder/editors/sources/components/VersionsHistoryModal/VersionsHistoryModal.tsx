@@ -9,9 +9,9 @@ import {
 import classNames from 'classnames';
 import { ChangeEvent, FC, useCallback, useMemo, useRef, useState } from 'react';
 
-import Modal from '@/components/builder/common/Modal';
 import Tooltip from '@/components/builder/common/Tooltip';
 import Loader from '@/components/common/Loader';
+import Modal from '@/components/common/Modal';
 import { AllowedSourceFilesTypesList, BytesInMb } from '@/constants/app';
 import { MAX_SOURCE_FILE_SIZE_MB } from '@/constants/settings';
 import { useBuilderDispatch, useBuilderSelector } from '@/store/builder/hooks';

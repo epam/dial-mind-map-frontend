@@ -1,6 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit';
 
-import { generateMindmapFolderPath, getEncodedPathFromApplication } from '@/utils/app/application';
+import { getEncodedPathFromApplication } from '@/utils/app/application';
 
 import { ChatRootState } from '../index';
 import { ApplicationState } from './application.types';
@@ -17,11 +17,6 @@ export const selectHasAppProperties = createSelector(
 export const selectHasAppReference = createSelector(
   [selectApplication],
   app => app && 'reference' in app && !!app.reference,
-);
-
-export const selectMindmapFolder = createSelector(
-  [rootSelector],
-  state => state.application?.application_properties?.mindmap_folder ?? generateMindmapFolderPath(state.application),
 );
 
 export const selectAppName = createSelector([selectApplication], app => app?.name);

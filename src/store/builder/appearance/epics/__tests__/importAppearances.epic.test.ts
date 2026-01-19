@@ -1,6 +1,5 @@
 jest.mock('@/store/builder/application/application.reducer', () => ({
   ApplicationSelectors: {
-    selectMindmapFolder: jest.fn(),
     selectApplicationName: jest.fn(),
   },
 }));
@@ -28,23 +27,7 @@ describe('importAppearancesEpic', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
-    (ApplicationSelectors.selectMindmapFolder as unknown as jest.Mock).mockReturnValue('test-folder');
     (ApplicationSelectors.selectApplicationName as unknown as jest.Mock).mockReturnValue('test-app');
-  });
-
-  it('does nothing if no folder is set', done => {
-    (ApplicationSelectors.selectMindmapFolder as unknown as jest.Mock).mockReturnValue(undefined);
-    const action$ = of(AppearanceActions.importAppearances({ file: new File([], 'dummy.txt') }));
-    const state$ = { value: {} } as any;
-    const output: any[] = [];
-
-    importAppearancesEpic(action$, state$).subscribe({
-      next: action => output.push(action),
-      complete: () => {
-        expect(output).toEqual([]);
-        done();
-      },
-    });
   });
 
   it('dispatches success when fetch responds ok', done => {

@@ -1,7 +1,6 @@
 import { UnknownAction } from '@reduxjs/toolkit';
-import { concat, concatMap, EMPTY, filter, from, map, of } from 'rxjs';
+import { concat, concatMap, filter, from, map, of } from 'rxjs';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { HTTPMethod } from '@/types/http';
 import { Source, SourceStatus } from '@/types/sources';
 import { BuilderRootEpic } from '@/types/store';
@@ -20,12 +19,6 @@ export const changeSourceNameEpic: BuilderRootEpic = (action$, state$) =>
       appName: ApplicationSelectors.selectApplicationName(state$.value),
     })),
     concatMap(({ payload, appName }) => {
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
       const sourcesNames = SourcesSelectors.selectSourcesNames(state$.value);
       const sources = SourcesSelectors.selectSources(state$.value);
       let realSourceStatus: SourceStatus | undefined;
@@ -60,19 +53,17 @@ export const changeSourceNameEpic: BuilderRootEpic = (action$, state$) =>
           }),
         );
 
-      return handleRequest(
-        `/api/mindmaps/${encodeURIComponent(appName)}/documents/${payload.sourceId}`,
-        {
+      return handleRequest({
+        url: `/api/mindmaps/${encodeURIComponent(appName)}/documents/${payload.sourceId}`,
+        options: {
           method: HTTPMethod.POST,
           body: JSON.stringify({ name: payload.name }),
-          headers: { [MindmapUrlHeaderName]: mindmapFolder },
         },
         state$,
         optimisticActions,
-        [],
-        [UIActions.showErrorToast('Failed to change the source name')],
+        failureActions: [UIActions.showErrorToast('Failed to change the source name')],
         responseProcessor,
-        true,
-      );
+        skipContentType: true,
+      });
     }),
   );

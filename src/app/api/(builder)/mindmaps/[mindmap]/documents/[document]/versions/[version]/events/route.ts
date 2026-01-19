@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { errorsMessages } from '@/constants/errors';
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
 import { HTTPMethod } from '@/types/http';
+import { decodeAppPathSafely } from '@/utils/app/application';
 import { withAuth } from '@/utils/auth/withAuth';
 import { getApiHeaders } from '@/utils/server/get-headers';
 import { logger } from '@/utils/server/logger';
@@ -12,10 +12,10 @@ import { withLogger } from '@/utils/server/withLogger';
 const sourceCreationSubscribeHandler = async (
   req: NextRequest,
   authParams: AuthParams,
-  context: { params: { mindmap: string; document: string; version: string } },
+  context: { params: Promise<{ mindmap: string; document: string; version: string }> },
 ) => {
-  const { document, version, mindmap: encodedMindmapId } = context.params;
-  const mindmapId = decodeURIComponent(encodedMindmapId);
+  const { document, version, mindmap: encodedMindmapId } = await context.params;
+  const mindmapId = decodeAppPathSafely(encodedMindmapId);
 
   try {
     const controller = new AbortController();
@@ -25,14 +25,13 @@ const sourceCreationSubscribeHandler = async (
     });
 
     const response = await fetch(
-      `${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/sources/${document}/versions/${version}/events`,
+      `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/sources/${document}/versions/${version}/events`,
       {
         method: HTTPMethod.POST,
         signal: controller.signal,
         headers: getApiHeaders({
           authParams: authParams,
           contentType: 'application/json',
-          [MindmapUrlHeaderName]: req.headers.get(MindmapUrlHeaderName) ?? undefined,
         }),
       },
     );
@@ -101,7 +100,7 @@ const sourceCreationSubscribeHandler = async (
       }),
     });
   } catch (error) {
-    logger.error({ error: error }, `Error occurred during processing source for mindmap ${context.params.mindmap}`);
+    logger.error({ error: error }, `Error occurred during processing source for mindmap ${encodedMindmapId}`);
     return new NextResponse(errorsMessages.generalServer, { status: 500 });
   }
 };

@@ -11,16 +11,16 @@ import { isValidUrl } from '@/utils/app/common';
 interface Props {
   field: Source;
   index: number;
-  editableIndex: number | null;
   editMode: SourceEditMode;
-  hoveredIndex: number | null;
+  isEdited: boolean;
+  isHovered: boolean;
   selectedRows: number[];
   hasError: boolean;
   value: string;
   onChange: (value: string) => void;
   onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>, index: number) => void;
   handleRowSelection: (index: number) => void;
-  inputRef: React.RefObject<HTMLInputElement>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
   generationStatus: GenerationStatus | null;
   inProgressUrls: string[];
   globalSourceName?: string;
@@ -45,9 +45,9 @@ const getFileIcon = (type?: string) => {
 export const SourceInputField = ({
   field,
   index,
-  editableIndex,
   editMode,
-  hoveredIndex,
+  isEdited,
+  isHovered,
   selectedRows,
   hasError,
   value,
@@ -60,11 +60,8 @@ export const SourceInputField = ({
   globalSourceName,
   onPasteList,
 }: Props) => {
-  const [display, setDisplay] = useState(
-    editableIndex === index && editMode === 'edit' ? value : (globalSourceName ?? value),
-  );
+  const [display, setDisplay] = useState(isEdited && editMode === 'edit' ? value : (globalSourceName ?? value));
 
-  const isHovered = hoveredIndex === index;
   const isSelected = selectedRows.includes(index);
   const isRemoved = field.status === SourceStatus.REMOVED;
 
@@ -74,13 +71,20 @@ export const SourceInputField = ({
     (!field.name || !inProgressUrls.includes(field.name)) &&
     field.status !== SourceStatus.INPROGRESS &&
     field.status !== SourceStatus.FAILED &&
-    editableIndex !== index;
+    !isEdited;
 
   const handlePaste = useCallback(
     (event: React.ClipboardEvent<HTMLInputElement>) => {
       event.preventDefault();
 
       const pastedText = event.clipboardData.getData('text');
+
+      if (editMode === 'rename') {
+        setDisplay(pastedText);
+        onChange(pastedText);
+        return;
+      }
+
       const rows = Array.from(new Set(pastedText.split(/\r?\n/)));
       const extractedLinks = rows.filter(isValidUrl);
 
@@ -92,15 +96,14 @@ export const SourceInputField = ({
         onChange(linkValue);
       }
     },
-    [onPasteList, setDisplay, onChange],
+    [onPasteList, setDisplay, onChange, editMode],
   );
 
   return (
     <div
       className={classNames(
         'pl-6 w-full flex items-center outline-none',
-        editableIndex === index &&
-          '!bg-layer-2 w-full py-0 input-form stroke-accent-primary border-accent-primary rounded-none m-0',
+        isEdited && '!bg-layer-2 w-full py-0 input-form stroke-accent-primary border-accent-primary rounded-none m-0',
         hasError && '!border-error hover:border-error focus:border-error',
       )}
     >
@@ -124,7 +127,7 @@ export const SourceInputField = ({
         <IconLink className="min-w-[18px] text-secondary" size={18} />
       )}
 
-      {editableIndex !== index && globalSourceName ? (
+      {!isEdited && globalSourceName ? (
         <div className="w-full overflow-x-hidden text-ellipsis text-nowrap">
           <Tooltip
             tooltip={value}
@@ -147,11 +150,11 @@ export const SourceInputField = ({
           }}
           onPaste={handlePaste}
           ref={inputRef}
-          readOnly={editableIndex !== index}
+          readOnly={!isEdited}
           onKeyDown={e => onKeyDown(e, index)}
           className={classNames(
             'bg-transparent pl-3 py-[9px] w-full outline-none text-ellipsis',
-            editableIndex === index && 'pr-16',
+            isEdited && 'pr-16',
             isRemoved && 'text-secondary',
           )}
           placeholder="Source URL"

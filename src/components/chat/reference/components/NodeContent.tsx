@@ -5,6 +5,7 @@ import remarkSupersub from 'remark-supersub';
 
 import { NodeReference } from '@/types/graph';
 
+import { LinkRenderer } from '../../chat/conversation/messages/markdown/elements/LinkRenderer';
 import { MemoizedReactMarkdown } from '../../chat/conversation/messages/markdown/MemoizedReactMarkdown';
 
 export const NodeContent = ({
@@ -18,7 +19,7 @@ export const NodeContent = ({
   return (
     <div
       className={classNames(
-        'flex w-full overflow-y-auto overflow-x-hidden',
+        'flex size-full overflow-y-auto overflow-x-hidden',
         isFullscreenReference ? 'justify-center' : '',
       )}
     >
@@ -29,6 +30,7 @@ export const NodeContent = ({
         )}
         remarkPlugins={[remarkGfm, remarkSupersub]}
         rehypePlugins={[rehypeRaw]}
+        components={{ a: LinkRenderer }}
       >
         {details}
       </MemoizedReactMarkdown>

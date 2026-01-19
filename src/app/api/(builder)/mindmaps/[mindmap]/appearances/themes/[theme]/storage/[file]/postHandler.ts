@@ -2,18 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import fetch from 'node-fetch';
 
 import { errorsMessages } from '@/constants/errors';
-import { EtagHeaderName, IfMatchHeaderName, MindmapUrlHeaderName } from '@/constants/http';
+import { EtagHeaderName, IfMatchHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
 import { HTTPMethod } from '@/types/http';
+import { decodeAppPathSafely } from '@/utils/app/application';
 import { getApiHeaders } from '@/utils/server/get-headers';
 import { logger } from '@/utils/server/logger';
 
 export const uploadFileHandler = async (
   req: NextRequest,
   authParams: AuthParams,
-  { params }: { params: { mindmap: string; theme: string; file: string } },
+  { params }: { params: Promise<{ mindmap: string; theme: string; file: string }> },
 ) => {
-  const mindmapId = decodeURIComponent(params.mindmap);
+  const { mindmap, theme, file } = await params;
+  const mindmapId = decodeAppPathSafely(mindmap);
 
   try {
     const formData = await req.formData();
@@ -22,11 +24,10 @@ export const uploadFileHandler = async (
       authParams,
       contentType: undefined,
       IfMatch: req.headers.get(IfMatchHeaderName) ?? '',
-      [MindmapUrlHeaderName]: req.headers.get(MindmapUrlHeaderName) ?? undefined,
     });
 
     const response = await fetch(
-      `${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/appearances/themes/${params.theme}/storage/${encodeURIComponent(params.file)}`,
+      `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/appearances/themes/${theme}/storage/${encodeURIComponent(file)}`,
       {
         method: HTTPMethod.POST,
         headers,
@@ -41,8 +42,8 @@ export const uploadFileHandler = async (
           status: response.status,
           response: errRespText,
           mindmap: mindmapId,
-          theme: params.theme,
-          file: params.file,
+          theme,
+          file,
         },
         `Error happened during uploading mindmap's file into storage`,
       );
@@ -71,8 +72,8 @@ export const uploadFileHandler = async (
       {
         error,
         mindmap: mindmapId,
-        theme: params.theme,
-        file: params.file,
+        theme,
+        file,
       },
       `Internal error happened during uploading mindmap's file into storage`,
     );

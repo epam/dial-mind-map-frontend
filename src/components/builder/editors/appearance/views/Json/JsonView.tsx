@@ -13,6 +13,7 @@ export const JsonView = () => {
   const dispatch = useBuilderDispatch();
   const theme = useBuilderSelector(UISelectors.selectTheme) || 'dark';
   const themeConfig = useBuilderSelector(AppearanceSelectors.selectThemeConfig);
+  const codeEditorTheme = useBuilderSelector(UISelectors.selectCodeEditorTheme);
 
   const [editorValue, setEditorValue] = useState<string>(
     Object.keys(themeConfig ?? {}).length ? JSON.stringify(themeConfig, null, 2) : JSON.stringify({}),
@@ -73,7 +74,7 @@ export const JsonView = () => {
             defaultLanguage="json"
             value={editorValue}
             onChange={handleChange}
-            theme={theme === 'light' ? 'vs' : 'vs-dark'}
+            theme={codeEditorTheme}
             options={{
               fontSize: 14,
               minimap: { enabled: false },

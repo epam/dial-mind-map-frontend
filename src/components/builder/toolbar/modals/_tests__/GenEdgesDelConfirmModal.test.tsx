@@ -5,7 +5,7 @@ import { createBuilderStore } from '@/store/builder';
 
 import { GenEdgesDelConfirmModal } from '../GenEdgesDelConfirmModal';
 
-jest.mock('../../../common/Modal', () => ({
+jest.mock('@/components/common/Modal', () => ({
   __esModule: true,
   default: ({ children }: any) => <div>{children}</div>,
 }));

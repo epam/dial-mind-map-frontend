@@ -13,10 +13,8 @@ import {
 } from 'rxjs';
 
 import { SourceProcessingTimeLimitMs } from '@/constants/app';
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { Source, SourceStatus } from '@/types/sources';
 import { BuilderRootEpic } from '@/types/store';
-import { generateMindmapFolderPath } from '@/utils/app/application';
 
 import { ApplicationSelectors } from '../../application/application.reducer';
 import { UIActions } from '../../ui/ui.reducers';
@@ -28,12 +26,8 @@ export const sourceStatusSubscribeEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
     filter(SourcesActions.sourceStatusSubscribe.match),
     mergeMap(({ payload }) => {
-      const name = ApplicationSelectors.selectApplicationName(state$.value);
-      const application = ApplicationSelectors.selectApplication(state$.value);
-      const mindmapFolder = generateMindmapFolderPath(application);
-
       const { sourceId, versionId } = payload;
-
+      const name = ApplicationSelectors.selectApplicationName(state$.value);
       const controller = new AbortController();
 
       return from(
@@ -42,7 +36,6 @@ export const sourceStatusSubscribeEpic: BuilderRootEpic = (action$, state$) =>
           signal: controller.signal,
           headers: {
             'Content-Type': 'application/json',
-            [MindmapUrlHeaderName]: mindmapFolder,
           },
         }),
       ).pipe(

@@ -1,9 +1,8 @@
 import { UnknownAction } from '@reduxjs/toolkit';
-import { catchError, EMPTY, filter, from, mergeMap, of, switchMap } from 'rxjs';
+import { catchError, EMPTY, filter, from, mergeMap, switchMap } from 'rxjs';
 import { fromFetch } from 'rxjs/fetch';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
-import { GenerationType } from '@/types/generate';
+import { GenerationType, InternalGenerateParams } from '@/types/generate';
 import { GenerationStatus, Sources, SourceStatus } from '@/types/sources';
 import { BuilderRootEpic } from '@/types/store';
 import { adjustSourcesStatuses } from '@/utils/app/sources';
@@ -15,24 +14,25 @@ import { checkForUnauthorized } from '../../utils/checkForUnauthorized';
 import { globalCatchUnauthorized } from '../../utils/globalCatchUnauthorized';
 import { SourcesActions } from '../sources.reducers';
 
+function hasSeenGenerationError(reference: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const generationErrorSeen = JSON.parse(localStorage.getItem('generation-error-seen') || '{}');
+    return !!generationErrorSeen[reference];
+  } catch {
+    return false;
+  }
+}
+
 export const initSourcesEpic: BuilderRootEpic = (action$, state$) =>
   action$.pipe(
     filter(SourcesActions.initSources.match),
     switchMap(({ payload }) => {
       const { name } = payload;
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-
-      if (!mindmapFolder) {
-        return of(
-          SourcesActions.setIsSourcesLoading(false),
-          UIActions.showErrorToast('Mindmap folder not found'),
-          BuilderActions.setGenerationStatus(GenerationStatus.NOT_STARTED),
-        );
-      }
 
       return fromFetch(`/api/mindmaps/${encodeURIComponent(name)}/documents`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json', [MindmapUrlHeaderName]: mindmapFolder },
+        headers: { 'Content-Type': 'application/json' },
       }).pipe(
         mergeMap(resp => checkForUnauthorized(resp)),
         mergeMap(resp => {
@@ -63,15 +63,29 @@ export const initSourcesEpic: BuilderRootEpic = (action$, state$) =>
 
               if (isSimpleGenerationModeAvailable) {
                 const defaultSimpleModeModel = BuilderSelectors.selectDefaultSimpleModeModel(state$.value);
-                const defaultSimpleModePrompt = BuilderSelectors.selectDefaultSimpleModePrompt(state$.value);
+                const defaultChatModel = BuilderSelectors.selectDefaultChatModel(state$.value);
                 if (response.params) {
-                  actions.push(BuilderActions.setGenerateParams(response.params));
+                  actions.push(
+                    BuilderActions.setGenerateParams({
+                      model: response.params.model || defaultSimpleModeModel,
+                      prompt: response.params.prompt,
+                      chatModel:
+                        response.params.chat_model ||
+                        (response.params as InternalGenerateParams).chatModel ||
+                        defaultChatModel,
+                      chatPrompt: response.params.chat_prompt || (response.params as InternalGenerateParams).chatPrompt,
+                      chatGuardrailsPrompt: response.params.chat_guardrails_prompt,
+                      chatGuardrailsEnabled: response.params.chat_guardrails_enabled ?? false,
+                      chatGuardrailsResponsePrompt: response.params.chat_guardrails_response_prompt,
+                      type: response.params.type || GenerationType.Universal,
+                    }),
+                  );
                 } else {
                   actions.push(
                     BuilderActions.setGenerateParams({
                       model: defaultSimpleModeModel,
                       type: GenerationType.Universal,
-                      prompt: defaultSimpleModePrompt,
+                      chatModel: defaultChatModel,
                     }),
                   );
                 }
@@ -96,6 +110,24 @@ export const initSourcesEpic: BuilderRootEpic = (action$, state$) =>
               if (generationStatus === GenerationStatus.NOT_STARTED) {
                 return from([...actions]);
               }
+
+              const applicationReference = ApplicationSelectors.selectApplication(state$.value)?.reference;
+              const skipGenerationStatusSubscribe = applicationReference
+                ? hasSeenGenerationError(applicationReference)
+                : false;
+
+              if (skipGenerationStatusSubscribe) {
+                if (response.generated) {
+                  actions.push(BuilderActions.fetchGraph());
+                }
+                actions.push(
+                  BuilderActions.setGenerationStatus(
+                    response.generated ? GenerationStatus.FINISHED : GenerationStatus.NOT_STARTED,
+                  ),
+                );
+                return from([...actions]);
+              }
+
               if (generationStatus === GenerationStatus.IN_PROGRESS) {
                 return from([...actions, BuilderActions.generationStatusSubscribe()]);
               }

@@ -2,8 +2,9 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 
 import { AnonymSessionSelectors } from '@/store/chat/anonymSession/anonymSession.slice';
 import { useChatSelector } from '@/store/chat/hooks';
+import { getRecaptchaInstance } from '@/utils/app/recaptcha';
 
-import { useRecaptcha } from './useRecaptcha';
+import { useRecaptchaScript } from './useRecaptcha';
 
 const RecaptchaContext = createContext<{
   isLoaded: boolean;
@@ -14,12 +15,12 @@ const RecaptchaContext = createContext<{
 
 export const RecaptchaProvider: React.FC<{
   siteKey: string;
-  isApiKeyAllowed: boolean;
+  enabled: boolean;
   children: React.ReactNode;
-}> = ({ siteKey, children, isApiKeyAllowed }) => {
+}> = ({ siteKey, children, enabled }) => {
   const isRecaptchaRequired = useChatSelector(AnonymSessionSelectors.selectIsRecaptchaRequired);
-  const isEnabled = isApiKeyAllowed && isRecaptchaRequired;
-  const isScriptLoaded = useRecaptcha(siteKey, isEnabled);
+  const isEnabled = enabled && isRecaptchaRequired;
+  const isScriptLoaded = useRecaptchaScript(siteKey, isEnabled);
   const [isExecuting, setIsExecuting] = useState(false);
   const recaptchaDivID = useRef<number | null>(null);
   const recaptchaDiv = useRef<HTMLDivElement | null>(null);
@@ -32,7 +33,7 @@ export const RecaptchaProvider: React.FC<{
     setIsExecuting(false);
 
     // Reset the reCAPTCHA widget to allow future executions
-    const grecaptcha = (globalThis as any).window.grecaptcha;
+    const grecaptcha = getRecaptchaInstance();
     if (recaptchaDivID.current != null && grecaptcha) {
       grecaptcha.reset(recaptchaDivID.current);
     }
@@ -48,7 +49,7 @@ export const RecaptchaProvider: React.FC<{
       return;
     }
 
-    const grecaptcha = (globalThis as any).window.grecaptcha;
+    const grecaptcha = getRecaptchaInstance();
     if (!grecaptcha) {
       console.error('reCAPTCHA library is not loaded.');
       return;
@@ -74,7 +75,7 @@ export const RecaptchaProvider: React.FC<{
         return;
       }
 
-      const grecaptcha = (globalThis as any).window.grecaptcha;
+      const grecaptcha = getRecaptchaInstance();
       if (!grecaptcha) {
         console.error('reCAPTCHA library is not loaded.');
         return;

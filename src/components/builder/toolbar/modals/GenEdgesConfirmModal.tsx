@@ -7,7 +7,7 @@ import { PreferencesActions, PreferencesSelectors } from '@/store/builder/prefer
 import { UIActions, UISelectors } from '@/store/builder/ui/ui.reducers';
 import { ModalState } from '@/types/modal';
 
-import Modal from '../../common/Modal';
+import Modal from '../../../common/Modal';
 
 export const GenEdgesConfirmModal = () => {
   const dispatch = useBuilderDispatch();
@@ -25,14 +25,14 @@ export const GenEdgesConfirmModal = () => {
       containerClassName="inline-block w-full max-w-[400px] px-3 py-4 md:p-6"
       state={isOpen ? ModalState.OPENED : ModalState.CLOSED}
       onClose={handleClose}
-      heading="Complement edges"
+      heading="Generate complement edges"
       headingClassName="text-primary"
       dismissProps={{ outsidePress: true }}
       hideClose
     >
       <div className="flex flex-col gap-4">
         <div>
-          <p className="text-sm text-secondary">Complement edges to complete the graph.</p>
+          <p className="text-sm text-secondary">Generate complement edges to complete the graph.</p>
         </div>
         <div className="relative flex items-center">
           <input
@@ -69,7 +69,7 @@ export const GenEdgesConfirmModal = () => {
               dispatch(PreferencesActions.setIsGenEdgesConfirmModalSkipped(isChecked));
             }}
           >
-            Complement
+            Generate
           </button>
         </div>
       </div>

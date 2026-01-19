@@ -20,12 +20,12 @@ import { fromFetch } from 'rxjs/fetch';
 
 import { updatePersistentFontPreloader } from '@/components/common/PersistentFontPreloader/util/updatePersistentFontPreloader';
 import { CustomStylesTagId } from '@/constants/app';
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { ThemeConfig } from '@/types/customization';
 import { ChatRootEpic } from '@/types/store';
 import { isWebFontLoaded } from '@/utils/app/fonts';
 import { getAppearanceFileUrl } from '@/utils/app/themes';
-import { themeConfigToStyles } from '@/utils/common/themeUtils';
+import { isAbortError, isNetworkError } from '@/utils/common/error';
+import { mapThemeConfigToStyles } from '@/utils/common/themeUtils';
 
 import { ApplicationSelectors } from '../application/application.reducer';
 import { ChatUIActions, ChatUISelectors } from '../ui/ui.reducers';
@@ -33,7 +33,7 @@ import { checkForUnauthorized } from '../utils/checkForUnauthorized';
 import { globalCatchChatUnauthorized } from '../utils/globalCatchUnauthorized';
 import { AppearanceActions, AppearanceSelectors } from './appearance.reducers';
 
-export const setThemeConfigEpic: ChatRootEpic = (action$, state$) =>
+const setThemeConfigEpic: ChatRootEpic = (action$, state$) =>
   action$.pipe(
     filter(AppearanceActions.setThemeConfig.match),
     switchMap(({ payload }) => {
@@ -45,7 +45,7 @@ export const setThemeConfigEpic: ChatRootEpic = (action$, state$) =>
 
       const theme = ChatUISelectors.selectThemeName(state$.value);
 
-      const styles = themeConfigToStyles(theme, payload);
+      const styles = mapThemeConfigToStyles(theme, payload);
       const stylesTag = document.getElementById(CustomStylesTagId);
       if (stylesTag) {
         stylesTag.innerHTML = styles;
@@ -61,9 +61,8 @@ export const setThemeConfigEpic: ChatRootEpic = (action$, state$) =>
         let fontUrl = '';
         if (payload.graph.font?.fontFileName) {
           const appName = ApplicationSelectors.selectApplicationName(state$.value);
-          const appFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
 
-          fontUrl = getAppearanceFileUrl(appName, theme, payload.graph.font?.fontFileName, appFolder);
+          fontUrl = getAppearanceFileUrl(appName, theme, payload.graph.font?.fontFileName);
         } else if (!isWebFontLoaded(newGraphFontFamily)) {
           fontUrl = `https://fonts.googleapis.com/css2?family=${newGraphFontFamily}:wght@100;200;300;400;500;600;700;800;900&display=swap`;
         }
@@ -96,9 +95,8 @@ export const setThemeConfigEpic: ChatRootEpic = (action$, state$) =>
         let fontUrl = '';
         if (payload.font?.fontFileName) {
           const appName = ApplicationSelectors.selectApplicationName(state$.value);
-          const appFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
 
-          fontUrl = getAppearanceFileUrl(appName, theme, payload.font?.fontFileName, appFolder);
+          fontUrl = getAppearanceFileUrl(appName, theme, payload.font?.fontFileName);
         } else if (!isWebFontLoaded(newFontFamily)) {
           fontUrl = `https://fonts.googleapis.com/css2?family=${newFontFamily}:wght@100;200;300;400;500;600;700;800;900&display=swap`;
         }
@@ -133,7 +131,7 @@ export const setThemeConfigEpic: ChatRootEpic = (action$, state$) =>
     }),
   );
 
-export const initThemeEpic: ChatRootEpic = (action$, state$) =>
+const initThemeEpic: ChatRootEpic = (action$, state$) =>
   action$.pipe(
     filter(AppearanceActions.initTheme.match),
     switchMap(() => {
@@ -148,16 +146,10 @@ export const initThemeEpic: ChatRootEpic = (action$, state$) =>
     }),
   );
 
-export const fetchThemeConfigEpic: ChatRootEpic = (action$, state$) =>
+const fetchThemeConfigEpic: ChatRootEpic = (action$, state$) =>
   action$.pipe(
     filter(AppearanceActions.fetchThemeConfig.match),
     concatMap(() => {
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
-
       const name = ApplicationSelectors.selectApplicationName(state$.value);
       const theme = ChatUISelectors.selectThemeName(state$.value);
 
@@ -165,7 +157,6 @@ export const fetchThemeConfigEpic: ChatRootEpic = (action$, state$) =>
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          [MindmapUrlHeaderName]: mindmapFolder,
         },
       }).pipe(
         switchMap((response: Response) => {
@@ -192,24 +183,20 @@ export const fetchThemeConfigEpic: ChatRootEpic = (action$, state$) =>
     }),
   );
 
-const subscribeOnThemeEpic: ChatRootEpic = (action$, state$) => {
-  return action$.pipe(
+const subscribeOnThemeEpic: ChatRootEpic = (action$, state$) =>
+  action$.pipe(
     filter(AppearanceActions.subscribeOnTheme.match),
     concatMap(() => {
       const appPath = ApplicationSelectors.selectEncodedApplicationPath(state$.value);
-      const mindmapFolder = ApplicationSelectors.selectMindmapFolder(state$.value);
-      if (!mindmapFolder || !appPath) {
-        return EMPTY;
-      }
-
       const theme = ChatUISelectors.selectThemeName(state$.value);
+      const controller = new AbortController();
 
       return from(
-        fetch(`/api/mindmaps/${encodeURIComponent(appPath)}/appearances/themes/${theme}/events`, {
-          method: 'POST',
+        fetch(`/api/mindmaps/${appPath}/appearances/themes/${theme}/events`, {
+          method: 'GET',
+          signal: controller.signal,
           headers: {
             'Content-Type': 'application/json',
-            [MindmapUrlHeaderName]: mindmapFolder,
           },
         }),
       ).pipe(
@@ -235,23 +222,26 @@ const subscribeOnThemeEpic: ChatRootEpic = (action$, state$) => {
 
                   for (const line of lines) {
                     if (line.startsWith('data:')) {
-                      const jsonData = line.slice(5).trim();
-                      observer.next(jsonData);
+                      observer.next(line.slice(5).trim());
                     }
                   }
 
                   buffer = lines[lines.length - 1];
                 }
                 observer.complete();
-              } catch (error) {
-                console.error(error);
+              } catch (error: any) {
+                if (isAbortError(error) || isNetworkError(error)) {
+                  observer.complete();
+                  return;
+                }
+                console.error('SSE read error:', error);
                 observer.error(error);
               }
             };
 
             read();
             return () => {
-              reader.cancel();
+              controller.abort();
             };
           });
 
@@ -275,6 +265,10 @@ const subscribeOnThemeEpic: ChatRootEpic = (action$, state$) => {
               return of(AppearanceActions.setThemeConfig(newThemeConfig));
             }),
             catchError(error => {
+              if (isAbortError(error) || isNetworkError(error)) {
+                // Expected close/unsubscribe
+                return EMPTY;
+              }
               console.warn('SSE error:', error);
               return EMPTY;
             }),
@@ -288,7 +282,6 @@ const subscribeOnThemeEpic: ChatRootEpic = (action$, state$) => {
       );
     }),
   );
-};
 
 export const AppearanceEpics = combineEpics(
   fetchThemeConfigEpic,

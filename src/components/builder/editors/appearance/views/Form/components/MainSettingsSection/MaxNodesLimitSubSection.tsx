@@ -46,6 +46,7 @@ export const MaxNodesLimitSubSection = () => {
       max={MaxNodesLimitMaxValue}
       value={maxNodesLimit}
       placeholder={DefaultMaxNodesLimit.toString()}
+      defaultValue={DefaultMaxNodesLimit}
     />
   );
 };

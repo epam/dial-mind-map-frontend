@@ -14,7 +14,7 @@ export const metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Get the theme from the request headers or default to 'dark'
-  const url = new URL(headers().get('x-url') || 'http://localhost');
+  const url = new URL((await headers()).get('x-url') || 'http://localhost');
   const theme = url.searchParams.get('theme') || 'dark';
 
   const session = await getServerSession();

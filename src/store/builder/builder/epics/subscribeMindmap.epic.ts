@@ -1,8 +1,8 @@
 import { catchError, concatMap, EMPTY, filter, from, map, merge, mergeMap, Observable, of, throwError } from 'rxjs';
 import { endWith } from 'rxjs/operators';
 
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { BuilderRootEpic } from '@/types/store';
+import { isAbortError, isNetworkError } from '@/utils/common/error';
 
 import { ApplicationSelectors } from '../../application/application.reducer';
 import { checkForUnauthorized } from '../../utils/checkForUnauthorized';
@@ -14,19 +14,16 @@ export const subscribeMindmapEpic: BuilderRootEpic = (action$, state$) =>
     filter(BuilderActions.subscribe.match),
     map(() => ({
       name: ApplicationSelectors.selectApplicationName(state$.value),
-      mindmapFolder: ApplicationSelectors.selectMindmapFolder(state$.value),
     })),
-    concatMap(({ name, mindmapFolder }) => {
-      if (!mindmapFolder) {
-        return EMPTY;
-      }
+    concatMap(({ name }) => {
+      const controller = new AbortController();
 
       const sse$ = from(
         fetch(`/api/mindmaps/${encodeURIComponent(name)}/subscribe`, {
-          method: 'POST',
+          method: 'GET',
+          signal: controller.signal,
           headers: {
             'Content-Type': 'application/json',
-            [MindmapUrlHeaderName]: mindmapFolder,
           },
         }),
       ).pipe(
@@ -39,7 +36,7 @@ export const subscribeMindmapEpic: BuilderRootEpic = (action$, state$) =>
           const reader = resp.body.getReader();
           const decoder = new TextDecoder('utf-8');
 
-          return new Observable<string>(observer => {
+          const event$ = new Observable<string>(observer => {
             const read = async () => {
               try {
                 let buffer = '';
@@ -52,26 +49,38 @@ export const subscribeMindmapEpic: BuilderRootEpic = (action$, state$) =>
 
                   for (const line of lines) {
                     if (line.startsWith('data:')) {
-                      const jsonData = line.slice(5).trim();
-                      observer.next(jsonData);
+                      observer.next(line.slice(5).trim());
                     }
                   }
 
                   buffer = lines[lines.length - 1];
                 }
                 observer.complete();
-              } catch (error) {
+              } catch (error: any) {
+                if (isAbortError(error) || isNetworkError(error)) {
+                  observer.complete();
+                  return;
+                }
+                console.error('SSE read error:', error);
                 observer.error(error);
               }
             };
+
             read();
-            return () => reader.cancel();
-          }).pipe(
+            return () => {
+              controller.abort();
+            };
+          });
+
+          return event$.pipe(
             map(data => {
               const parsedData = JSON.parse(data);
               return BuilderActions.update({ etag: parsedData.etag });
             }),
             catchError(error => {
+              if (isAbortError(error) || isNetworkError(error)) {
+                return of(BuilderActions.unsubscribe());
+              }
               console.warn('SSE error:', error);
               return of(BuilderActions.unsubscribe());
             }),

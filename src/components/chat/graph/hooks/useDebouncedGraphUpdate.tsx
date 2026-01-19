@@ -5,7 +5,7 @@ import { cloneDeep } from 'lodash-es';
 import { useEffect, useRef } from 'react';
 
 import { NEW_QUESTION_LABEL } from '@/constants/app';
-import { GraphConfig, GraphImgResourceKey } from '@/types/customization';
+import { GraphConfig, GraphImgResourceKey, GraphLayoutType } from '@/types/customization';
 import { Edge, Element, GraphElement, Node, SystemNodeDataKeys } from '@/types/graph';
 import { isNode } from '@/utils/app/graph/typeGuards';
 
@@ -13,6 +13,7 @@ import { AnimationDurationMs, DefaultGraphDepth, InitLayoutOptions, MaxVisibleNo
 import { adjustMessages } from '../utils/adjustMessages';
 import { filterInvalidEdges } from '../utils/graph/filterInvalidEdges';
 import { getSubgraph } from '../utils/graph/getSubgraph';
+import { applyClusteredAroundRoot } from '../utils/graph/layout';
 import { markParents } from '../utils/graph/markParents';
 import { unmarkParents } from '../utils/graph/unmarkParents';
 import { sanitizeElements } from '../utils/sanitizeElements';
@@ -34,7 +35,6 @@ interface UseDebouncedGraphUpdateProps {
   delay?: number;
   fontFamily?: string;
   mindmapAppName: string;
-  mindmapFolder: string;
   theme: string;
   graphConfig: GraphConfig;
 }
@@ -50,7 +50,6 @@ export const useDebouncedGraphUpdate = ({
   delay = AnimationDurationMs + 300,
   fontFamily,
   mindmapAppName,
-  mindmapFolder,
   theme,
   graphConfig,
 }: UseDebouncedGraphUpdateProps) => {
@@ -61,7 +60,6 @@ export const useDebouncedGraphUpdate = ({
   const dispatchRef = useRef(dispatch);
   const fontFamilyRef = useRef(fontFamily);
   const mindmapAppNameRef = useRef(mindmapAppName);
-  const mindmapFolderRef = useRef(mindmapFolder);
   const themeRef = useRef(theme);
   const graphConfigRef = useRef(graphConfig);
 
@@ -73,21 +71,9 @@ export const useDebouncedGraphUpdate = ({
     dispatchRef.current = dispatch;
     fontFamilyRef.current = fontFamily;
     mindmapAppNameRef.current = mindmapAppName;
-    mindmapFolderRef.current = mindmapFolder;
     themeRef.current = theme;
     graphConfigRef.current = graphConfig;
-  }, [
-    cy,
-    elements,
-    focusNodeId,
-    visitedNodes,
-    dispatch,
-    fontFamily,
-    mindmapAppName,
-    mindmapFolder,
-    theme,
-    graphConfig,
-  ]);
+  }, [cy, elements, focusNodeId, visitedNodes, dispatch, fontFamily, mindmapAppName, theme, graphConfig]);
 
   const debouncedUpdate = useRef(
     debounce(
@@ -193,32 +179,39 @@ export const useDebouncedGraphUpdate = ({
           nodeColorMap,
           previousNodeId,
           mindmapAppName: mindmapAppNameRef.current,
-          mindmapFolder: mindmapFolderRef.current,
           theme: themeRef.current,
           defaultBgImg: graphConfigRef.current.images?.[GraphImgResourceKey.DefaultBgImg],
           isInitialization: null,
           needToUpdateInBucket: true,
         });
 
-        cy.layout({
-          randomize: false,
-          ...InitLayoutOptions,
-        } as LayoutOptions).run();
+        if (graphConfigRef.current.layout === GraphLayoutType.EllipticRing) {
+          applyClusteredAroundRoot(cy, { ANIMATE: true });
+        } else {
+          cy.layout({
+            randomize: false,
+            ...InitLayoutOptions,
+          } as LayoutOptions).run();
+        }
 
         cy.endBatch();
       },
       delay,
       {
-        leading: true,
+        leading: false,
         trailing: true,
+        maxWait: delay,
       },
     ),
   ).current;
 
   useEffect(() => {
-    if (!cy || isInitialization || !(updateSignal > 0)) return;
+    if (!cyRef.current || isInitialization || !(updateSignal > 0)) return;
     debouncedUpdate();
-  }, [updateSignal, isInitialization, cy, debouncedUpdate]);
+    return () => {
+      debouncedUpdate.cancel();
+    };
+  }, [updateSignal, isInitialization, debouncedUpdate]);
 
   useEffect(() => {
     return () => {

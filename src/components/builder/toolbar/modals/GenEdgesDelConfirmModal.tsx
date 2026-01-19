@@ -5,7 +5,7 @@ import { useBuilderDispatch, useBuilderSelector } from '@/store/builder/hooks';
 import { UIActions, UISelectors } from '@/store/builder/ui/ui.reducers';
 import { ModalState } from '@/types/modal';
 
-import Modal from '../../common/Modal';
+import Modal from '../../../common/Modal';
 
 export const GenEdgesDelConfirmModal = () => {
   const dispatch = useBuilderDispatch();

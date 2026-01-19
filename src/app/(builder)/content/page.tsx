@@ -9,6 +9,7 @@ import { Forbidden } from '@/components/common/Forbidden';
 import Loader from '@/components/common/Loader';
 import { Login } from '@/components/common/Login';
 import { NetworkOfflineBanner } from '@/components/common/NetworkOfflineBanner';
+import { ServerUnavailableBanner } from '@/components/common/ServerUnavailableBanner';
 import { useBuilderInitialization } from '@/hooks/builder/content/useBuilderInitialization';
 import { useEditorHotkeys } from '@/hooks/builder/content/useEditorHotkeys';
 import { useApplicationInitializer } from '@/hooks/builder/sources/useApplicationInitializer';
@@ -58,6 +59,7 @@ const ContentPage = () => {
   useEditorHotkeys();
 
   const isOffline = useBuilderSelector(UISelectors.selectIsOffline);
+  const isServerUnavailable = useBuilderSelector(UISelectors.selectIsServerUnavailable);
 
   if (!isAllowProvider) {
     return <AuthProviderError provider={chatAuthProvider ?? ''} availableProviders={providers} />;
@@ -76,6 +78,10 @@ const ContentPage = () => {
 
   if (!isApplicationReady) {
     return <Loader containerClassName="absolute inset-0 z-10 flex size-full items-center justify-center bg-layer-2" />;
+  }
+
+  if (isServerUnavailable) {
+    return <ServerUnavailableBanner />;
   }
 
   if (isOffline) {

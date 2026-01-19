@@ -13,7 +13,7 @@ const loadScript = (src: string) => {
   });
 };
 
-export const useRecaptcha = (siteKey: string, isRecaptchaRequired: boolean) => {
+export const useRecaptchaScript = (siteKey: string, isRecaptchaRequired: boolean) => {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export const useRecaptcha = (siteKey: string, isRecaptchaRequired: boolean) => {
 
     const loader = async () => {
       try {
-        await loadScript(`https://www.google.com/recaptcha/api.js?render=${siteKey}`);
+        await loadScript(`https://www.google.com/recaptcha/enterprise.js?render=${siteKey}`);
         if (isMounted) {
           setLoaded(true);
         }

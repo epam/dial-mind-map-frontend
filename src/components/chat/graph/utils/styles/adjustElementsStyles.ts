@@ -146,8 +146,8 @@ function adjustStylesOfBranches(
       }
 
       // fallback for mindmaps that doesn't configure hover effect
-      if (!customStyles?.width) {
-        customStyles['font-size'] = DefaultLevel2NodeFontSize;
+      if (customStyles && !customStyles.width && !customStyles[NodeStylesKey.FontSize]) {
+        customStyles[NodeStylesKey.FontSize] = DefaultLevel2NodeFontSize;
       }
 
       if (node.id() !== focusNodeId && visitedNodesIds.includes(node.id())) {
@@ -249,8 +249,8 @@ function adjustStylesOfFocusNode(
   }
 
   // fallback for mindmaps that doesn't configure hover effect
-  if (!customStyles?.width) {
-    customStyles['font-size'] = DefaultRootNodeFontSize;
+  if (customStyles && !customStyles.width && !customStyles[NodeStylesKey.FontSize]) {
+    customStyles[NodeStylesKey.FontSize] = DefaultRootNodeFontSize;
   }
 
   focusNode.style({
@@ -290,8 +290,8 @@ function adjustStylesOfNeighborsOfFocusNode(focusNode: CollectionReturnValue, gr
   }
 
   // fallback for mindmaps that doesn't configure hover effect
-  if (!customStyles?.width) {
-    customStyles['font-size'] = DefaultLevel1NodeFontSize;
+  if (customStyles && !customStyles.width && !customStyles[NodeStylesKey.FontSize]) {
+    customStyles[NodeStylesKey.FontSize] = DefaultLevel1NodeFontSize;
   }
 
   focusNode.neighborhood().forEach(neighbor => {

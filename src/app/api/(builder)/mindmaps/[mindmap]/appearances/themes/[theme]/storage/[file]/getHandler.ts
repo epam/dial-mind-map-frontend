@@ -1,59 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fetch from 'node-fetch';
-import { extname } from 'path';
 
 import { errorsMessages } from '@/constants/errors';
-import { MindmapUrlHeaderName } from '@/constants/http';
 import { AuthParams } from '@/types/api';
+import { decodeAppPathSafely } from '@/utils/app/application';
+import { getMimeFromFilename } from '@/utils/app/file';
 import { getApiHeaders } from '@/utils/server/get-headers';
 import { logger } from '@/utils/server/logger';
-
-const mimeTypes = {
-  '.svg': 'image/svg+xml',
-  '.woff2': 'font/woff2',
-  '.woff': 'font/woff',
-  '.ttf': 'font/ttf',
-  '.otf': 'font/otf',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-};
-
-const getMimeFromFilename = (filename: string): string => {
-  const ext = extname(filename).toLowerCase();
-  return mimeTypes[ext as keyof typeof mimeTypes] || 'application/octet-stream';
-};
 
 const CACHE_TIME_IN_SECONDS = 3600; // 1 hour
 
 export const getFileHandler = async (
   req: NextRequest,
   authParams: AuthParams,
-  { params }: { params: { mindmap: string; theme: string; file: string } },
+  { params }: { params: Promise<{ mindmap: string; theme: string; file: string }> },
 ) => {
-  const mindmapId = decodeURIComponent(params.mindmap);
+  const { mindmap, theme, file } = await params;
+  const mindmapId = decodeAppPathSafely(mindmap);
   const searchParams = new URL(req.url).searchParams;
-  const mmFolderPath = searchParams.get('folder');
-
-  if (!mmFolderPath) {
-    logger.warn(
-      {
-        url: req.url,
-      },
-      'Application folder is empty',
-    );
-    return new NextResponse(errorsMessages[400], { status: 400 });
-  }
 
   try {
-    const url = `${process.env.MINDMAP_BACKEND_URL}/mindmaps/${mindmapId}/appearances/themes/${params.theme}/storage/${params.file}`;
+    const url = `${process.env.DIAL_API_HOST}/v1/deployments/${mindmapId}/route/v1/appearances/themes/${theme}/storage/${file}`;
 
     const response = await fetch(url, {
       method: 'GET',
       headers: getApiHeaders({
         authParams: authParams,
-        [MindmapUrlHeaderName]: mmFolderPath,
       }),
     });
 
@@ -74,7 +46,7 @@ export const getFileHandler = async (
       return new NextResponse(errorsMessages.getDocumentsFailed, { status: response.status });
     }
 
-    const contentType = response.headers.get('Content-Type') || getMimeFromFilename(params.file);
+    const contentType = response.headers.get('Content-Type') || getMimeFromFilename(file);
     const contentDisposition = response.headers.get('Content-Disposition') || 'attachment';
 
     const headers = new Headers({
@@ -113,7 +85,7 @@ export const getFileHandler = async (
   } catch (error) {
     logger.error(
       { error: error },
-      `Internal error occurred while fetching file /mindmaps/${mindmapId}/sources/${params.theme}/storage/${params.file}`,
+      `Internal error occurred while fetching file /mindmaps/${mindmapId}/sources/${theme}/storage/${file}`,
     );
     return new NextResponse(errorsMessages.generalServer, { status: 500 });
   }

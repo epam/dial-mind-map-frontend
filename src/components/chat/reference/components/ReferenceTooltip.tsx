@@ -11,17 +11,11 @@ import { DocsReference, NodeReference } from '@/types/graph';
 
 interface ReferenceTooltipProps {
   references: Array<DocsReference | NodeReference>;
-  mindmapFolder: string;
   referenceId?: string;
-  badgeRef?: React.RefObject<HTMLSpanElement>;
+  badgeRef?: React.RefObject<HTMLSpanElement | null>;
 }
 
-export const ReferenceTooltip: React.FC<ReferenceTooltipProps> = ({
-  references,
-  mindmapFolder,
-  referenceId,
-  badgeRef,
-}) => {
+export const ReferenceTooltip: React.FC<ReferenceTooltipProps> = ({ references, referenceId, badgeRef }) => {
   const dispatch = useChatDispatch();
   const isMapHidden = useChatSelector(ChatUISelectors.selectIsMapHidden);
 
@@ -42,7 +36,6 @@ export const ReferenceTooltip: React.FC<ReferenceTooltipProps> = ({
   const { Title, current, prev, next, sliderRef, slides, settings } = useReferenceSlider({
     setOpenTooltip: setOpen,
     references,
-    mindmapFolder,
     referenceId,
     availableHeight,
   });
@@ -80,7 +73,7 @@ export const ReferenceTooltip: React.FC<ReferenceTooltipProps> = ({
         onNext={next}
       />
 
-      <Slider ref={sliderRef} {...settings} className="h-full">
+      <Slider ref={sliderRef} {...settings} className="h-full max-h-[min(280px,30dvh)] overflow-y-auto">
         {slides}
       </Slider>
     </div>

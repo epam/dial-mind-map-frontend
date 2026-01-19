@@ -49,3 +49,7 @@ export const selectActiveFullscreenReferenceId = createSelector(
   [rootSelector],
   state => state.activeFullscreenReferenceId,
 );
+
+export const selectRelayoutInProgress = createSelector([rootSelector], state => state.relayoutInProgress);
+
+export const selectCompletionGraphResponseId = createSelector([rootSelector], state => state.completionGraphResponseId);

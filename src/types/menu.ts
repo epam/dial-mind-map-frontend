@@ -1,6 +1,6 @@
 import { Placement } from '@floating-ui/react';
 import { Icon, IconProps } from '@tabler/icons-react';
-import { FC, ForwardRefExoticComponent, MouseEventHandler, ReactNode, RefAttributes } from 'react';
+import { FC, ForwardRefExoticComponent, type JSX, MouseEventHandler, ReactNode, RefAttributes } from 'react';
 
 export interface CustomTriggerMenuRendererProps extends MenuItemRendererProps {
   Renderer: (props: MenuItemRendererProps) => JSX.Element;

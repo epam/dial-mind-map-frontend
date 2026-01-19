@@ -52,7 +52,7 @@ const TableView = () => {
   };
 
   return (
-    <div style={{ direction: table.options.columnResizeDirection }} className="size-full">
+    <div style={{ direction: table.options.columnResizeDirection }} className="size-full bg-layer-3">
       <table
         style={{
           width: table.getCenterTotalSize(),
@@ -67,7 +67,7 @@ const TableView = () => {
                   key={header.id}
                   colSpan={header.colSpan}
                   style={{ width: header.getSize() }}
-                  className="relative border border-t-0 border-tertiary px-3 py-2 text-start text-[11px] uppercase text-secondary"
+                  className="relative h-[36px] border border-t-0 border-tertiary px-3 py-1 text-start text-[11px] font-bold uppercase text-secondary"
                 >
                   {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                   <div
@@ -103,7 +103,7 @@ const TableView = () => {
                       width: cell.column.getSize(),
                     }}
                     className={classNames([
-                      'border border-tertiary px-3 py-2 overflow-hidden text-nowrap',
+                      'border border-tertiary h-[36px] px-3 py-1 overflow-hidden text-nowrap',
                       row.original.id === focusNodeId && 'bg-accent-primary-alpha',
                       row.original.id === rootNodeId && row.original.id !== focusNodeId && 'bg-layer-4',
                       highlightedNodeIds.length > 0 &&
